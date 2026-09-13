@@ -1,0 +1,19 @@
+{
+  "company_name": "VoiceAI Labs",
+  "decision_makers": [
+    {
+      "name": "Jane Doe",
+      "title": "CEO & Co-founder",
+      "linkedin_url": "https://linkedin.com/in/janedoe",
+      "seniority": "C-level",
+      "company_name": "VoiceAI Labs"
+    },
+    {
+      "name": "John Smith",
+      "title": "CTO & Co-founder",
+      "linkedin_url": "https://linkedin.com/in/johnsmith",
+      "seniority": "C-level",
+      "company_name": "VoiceAI Labs"
+    }
+  ]
+}

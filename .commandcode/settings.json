@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(pip:*)",
+      "Shell(python3 --version)",
+      "Shell(python3 -m venv /tmp/venv-decision-engine)",
+      "Shell(/tmp/venv-decision-engine/bin/pip:*)",
+      "Shell(/tmp/venv-decision-engine/bin/ruff:*)",
+      "Shell(/tmp/venv-decision-engine/bin/pytest:*)",
+      "Shell(/tmp/venv-decision-engine/bin/python:*)",
+      "Shell(rm:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "company": {
+    "company_name": "TechCorp Inc",
+    "domain": "techcorp.com",
+    "industry": "Software",
+    "description": "AI infrastructure company",
+    "employee_count": 250,
+    "founded_date": "2018-03-15",
+    "location": "San Francisco, CA",
+    "technographics": {
+      "technologies": ["Python", "PyTorch", "Kubernetes", "AWS"],
+      "categories": ["AI/ML", "Cloud Infrastructure"]
+    },
+    "funding": {
+      "total_raised": 45000000,
+      "latest_round_type": "Series B",
+      "latest_round_amount": 25000000,
+      "latest_round_date": "2023-06-01"
+    }
+  }
+}

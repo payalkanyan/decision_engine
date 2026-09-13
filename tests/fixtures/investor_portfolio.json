@@ -1,0 +1,21 @@
+{
+  "investor_name": "Sequoia",
+  "portfolio_companies": [
+    {
+      "name": "VoiceAI Labs",
+      "domain": "voiceailabs.com",
+      "industry": "AI/ML",
+      "employee_count": 45,
+      "total_funding": 12000000,
+      "description": "Real-time voice AI platform"
+    },
+    {
+      "name": "NLP Startup",
+      "domain": "nlpstartup.io",
+      "industry": "AI/ML",
+      "employee_count": 30,
+      "total_funding": 8000000,
+      "description": "Natural language processing"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "jobs": [
+    {
+      "title": "Senior ML Engineer",
+      "department": "Engineering",
+      "location": "San Francisco, CA",
+      "posted_date": "2024-09-01",
+      "company_name": "TechCorp Inc"
+    },
+    {
+      "title": "Voice AI Researcher",
+      "department": "Research",
+      "location": "Remote",
+      "posted_date": "2024-08-28",
+      "company_name": "TechCorp Inc"
+    }
+  ],
+  "total_count": 2
+}

@@ -1,0 +1,9 @@
+{
+  "company_name": "TechCorp Inc",
+  "facet": null,
+  "series": [
+    {"date": "2024-01-01", "headcount": 200},
+    {"date": "2024-04-01", "headcount": 225},
+    {"date": "2024-07-01", "headcount": 250}
+  ]
+}

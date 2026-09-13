@@ -1,0 +1,21 @@
+{
+  "company_name": "VoiceAI Labs",
+  "milestones": [
+    {
+      "date": "2022-03-01",
+      "round_type": "Seed",
+      "amount": 2000000,
+      "investors": ["Y Combinator", "Sequoia"],
+      "valuation": 10000000,
+      "pre_money_valuation": 8000000
+    },
+    {
+      "date": "2023-09-01",
+      "round_type": "Series A",
+      "amount": 10000000,
+      "investors": ["Sequoia", "Andreessen Horowitz"],
+      "valuation": 45000000,
+      "pre_money_valuation": 35000000
+    }
+  ]
+}

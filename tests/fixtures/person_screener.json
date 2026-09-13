@@ -1,0 +1,21 @@
+{
+  "results": [
+    {
+      "name": "Alice Chen",
+      "title": "VP of Engineering",
+      "company_name": "VoiceAI Labs",
+      "linkedin_url": "https://linkedin.com/in/alicechen",
+      "seniority": "VP",
+      "location": "San Francisco, CA"
+    },
+    {
+      "name": "Bob Garcia",
+      "title": "Head of Voice AI",
+      "company_name": "SpeechTech Co",
+      "linkedin_url": "https://linkedin.com/in/bobgarcia",
+      "seniority": "Director",
+      "location": "Remote"
+    }
+  ],
+  "total_count": 2
+}

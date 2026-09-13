@@ -1,0 +1,19 @@
+{
+  "company_name": "VoiceAI Labs",
+  "posts": [
+    {
+      "author_name": "Jane Doe",
+      "author_title": "CEO & Co-founder",
+      "content": "Excited to announce our new real-time voice AI platform!",
+      "posted_date": "2024-09-10T10:00:00",
+      "engagement": 342
+    },
+    {
+      "author_name": "John Smith",
+      "author_title": "CTO & Co-founder",
+      "content": "Our team published a new paper on low-latency speech models.",
+      "posted_date": "2024-09-05T14:30:00",
+      "engagement": 156
+    }
+  ]
+}

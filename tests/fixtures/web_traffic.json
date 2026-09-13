@@ -1,0 +1,8 @@
+{
+  "domain": "voiceailabs.com",
+  "series": [
+    {"date": "2024-07-01", "monthly_visits": 45000},
+    {"date": "2024-08-01", "monthly_visits": 52000},
+    {"date": "2024-09-01", "monthly_visits": 58000}
+  ]
+}

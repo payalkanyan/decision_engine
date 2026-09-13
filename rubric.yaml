@@ -1,0 +1,148 @@
+# Build vs Partner vs Acquire — Scoring Rubric
+# Single source of truth for how each path is scored.
+# Kept in YAML (not hardcoded) so weights are inspectable and tunable
+# without touching the scoring code, and so reviewers can read the
+# decision logic without reading Python.
+
+version: 1.0
+
+capability_goal:
+  # Filled in per-run, e.g. "AI voice"
+  description: "{{goal}}"
+  taxonomy_tags: []   # e.g. [speech-to-text, tts, voice-agents, real-time-audio]
+  # taxonomy_tags are derived by the LLM layer from the free-text goal,
+  # then used to build Crustdata search/filter queries.
+
+paths:
+
+  build:
+    description: >
+      How feasible it is for the requesting company to develop this
+      capability internally, given its own talent, stack, and how mature
+      / crowded the external ecosystem already is.
+    weight_in_final_decision: 0.34
+    criteria:
+      - id: internal_hiring_velocity
+        description: "Rate at which the company is already hiring for adjacent roles"
+        source: "jobs_api + headcount_timeseries (own company)"
+        weight: 0.25
+        scale: "0-10, 10 = strong existing hiring motion in this capability"
+      - id: existing_tech_stack_overlap
+        description: "Overlap between company's current tech stack and capability requirements"
+        source: "company_enrichment.technographics (own company)"
+        weight: 0.25
+        scale: "0-10, 10 = capability is a natural extension of current stack"
+      - id: talent_market_availability
+        description: "Depth of hireable talent pool for this capability in relevant markets"
+        source: "jobs_api (market-wide) + person_screener"
+        weight: 0.2
+        scale: "0-10, 10 = deep, liquid talent market"
+      - id: estimated_time_to_capability
+        description: "Estimated months to reach competitive capability internally"
+        source: "derived from internal_hiring_velocity + talent_market_availability"
+        weight: 0.15
+        scale: "0-10, 10 = fast (<6 months), 0 = slow (>24 months)"
+      - id: ecosystem_maturity_penalty
+        description: >
+          Penalty when the space is moving too fast / is too crowded with
+          well-funded specialists to realistically out-build from scratch.
+        source: "company_search (competitor density) + funding_milestone_timeseries"
+        weight: 0.15
+        scale: "0-10, 10 = low external maturity (safe to build), 0 = crowded/fast-moving (risky to build)"
+
+  partner:
+    description: >
+      Availability of complementary, reachable companies with minimal
+      competitive overlap and low integration friction.
+    weight_in_final_decision: 0.33
+    criteria:
+      - id: capability_match
+        description: "How closely candidate companies' tech/product matches the target capability"
+        source: "company_search + company_enrichment.technographics"
+        weight: 0.3
+        scale: "0-10"
+      - id: complementary_customer_base
+        description: "Degree of non-overlapping customer/market fit (good for co-selling, bad if direct competitor)"
+        source: "company_enrichment (industry, customer segment signals)"
+        weight: 0.2
+        scale: "0-10, 10 = highly complementary, 0 = direct competitor overlap"
+      - id: decision_maker_reachability
+        description: "Presence of named, reachable decision-makers at candidate companies"
+        source: "decision_makers_filter / person_screener"
+        weight: 0.25
+        scale: "0-10, 10 = multiple senior, reachable contacts identified"
+      - id: partnership_stability_signal
+        description: "Signals the company is a stable, ongoing entity, not distressed or itself about to be acquired"
+        source: "funding_milestone_timeseries + headcount_timeseries + web_traffic"
+        weight: 0.15
+        scale: "0-10"
+      - id: integration_friction
+        description: "Estimated friction to integrate: API-first vs closed platform, licensing model"
+        source: "company_enrichment + LLM inference from product/docs signals"
+        weight: 0.1
+        scale: "0-10, 10 = low friction"
+
+  acquire:
+    description: >
+      Presence of acquirable companies with the relevant product/team at a
+      viable size and funding stage.
+    weight_in_final_decision: 0.33
+    criteria:
+      - id: capability_match
+        description: "How closely candidate companies' tech/product matches the target capability"
+        source: "company_search + company_enrichment.technographics"
+        weight: 0.25
+        scale: "0-10"
+      - id: acquirable_size
+        description: "Headcount/scale bucket suggesting the company is small enough to be absorbable"
+        source: "headcount_timeseries"
+        weight: 0.2
+        scale: "0-10, 10 = ideal acquirable size (e.g. 5-50 employees), 0 = too large or too early / pre-product"
+      - id: acquirable_funding_stage
+        description: >
+          Funding trajectory suggesting openness to acquisition (plateaued
+          growth, runway pressure) rather than hypergrowth that signals
+          the company wants to stay independent.
+        source: "funding_milestone_timeseries + investor_portfolio_data"
+        weight: 0.25
+        scale: "0-10, 10 = classic acquirable profile"
+      - id: team_quality_signal
+        description: "Signals of a strong core team worth acquiring, not just the product"
+        source: "person_screener + linkedin_posts (founder/team activity)"
+        weight: 0.2
+        scale: "0-10"
+      - id: decision_maker_reachability
+        description: "Named founders/execs to open acquisition conversations with"
+        source: "decision_makers_filter / person_screener"
+        weight: 0.1
+        scale: "0-10"
+
+output_format:
+  final_scores:
+    build: "0-10, weighted sum of build criteria"
+    partner: "0-10, weighted sum of partner criteria"
+    acquire: "0-10, weighted sum of acquire criteria"
+  recommendation: >
+    Highest scoring path. If the top two scores are within 1.0 of each
+    other, flag as "close call" and present both paths with trade-offs
+    instead of forcing a single answer.
+  evidence_trail:
+    - criterion_id: string
+      raw_value: number
+      source_field: string
+      api_call_id: string
+      timestamp: string
+  candidate_companies:
+    - name: string
+      path_relevance: "build | partner | acquire"
+      key_signals: []
+      decision_makers:
+        - name: string
+          title: string
+          source: "decision_makers_filter"
+  assumptions_and_gaps: "explicit list of data that was missing, stale, or estimated rather than measured"
+
+notes:
+  - "Weights are a starting point — tune per run based on which criteria actually have data coverage."
+  - "If a criterion's source data is unavailable for a given company, exclude it from the weighted sum and renormalize the remaining weights rather than defaulting it to 0 or 5."
+  - "This file is meant to be read by reviewers directly — keep descriptions in plain English, not code."
