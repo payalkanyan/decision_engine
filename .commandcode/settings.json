@@ -8,7 +8,9 @@
       "Shell(/tmp/venv-decision-engine/bin/ruff:*)",
       "Shell(/tmp/venv-decision-engine/bin/pytest:*)",
       "Shell(/tmp/venv-decision-engine/bin/python:*)",
-      "Shell(rm:*)"
+      "Shell(rm:*)",
+      "Shell(grep:*)",
+      "Shell(ls /tmp/venv-decision-engine/bin/ 2>/dev/null | head -5; echo \"---\"; ls .venv/bin 2>/dev/null | head -5; echo \"---\"; ls .python-version 2>/dev/null; echo \"which python:\"; which python3)"
     ],
     "deny": [],
     "defaultMode": "default"
