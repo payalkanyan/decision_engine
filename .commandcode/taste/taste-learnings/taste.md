@@ -14,3 +14,4 @@
 - No live API calls at any point — always use recorded fixtures/responses; never call real external APIs, even outside of tests. Confidence: 0.85
 - Prefers filtering/cleaning functions to return metadata about what was removed (e.g. filtered_out_count), not just the cleaned result, for transparency in downstream output. Confidence: 0.8
 - Tests should assert on the actual correct answer derived from real data, even when that answer is an edge case (e.g. zero valid results) — explicitly note such cases as findings rather than bending the test to pass or fabricating expected values. Confidence: 0.8
+- When resuming a previously started/completed task (e.g. "continue the prev task"), verify the existing on-disk state and test status first and trust completed work rather than re-implementing from scratch. Confidence: 0.75
