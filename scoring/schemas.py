@@ -35,7 +35,7 @@ class CriterionScore(BaseModel):
     criterion_id: str
     score: float  # 0-10
     weight: float  # from rubric (post-renormalization if applicable)
-    evidence: ProvenanceRecord
+    evidence: ProvenanceRecord | None = None
     excluded: bool = False  # True if data was missing → renormalized out
     notes: str | None = None
 

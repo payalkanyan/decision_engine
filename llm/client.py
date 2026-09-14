@@ -1,30 +1,56 @@
-from pathlib import Path
+import os
+import time
+
+import groq
+from pydantic import BaseModel
 
 
-class LLMClient:
-    """LLM API client wrapper.
+class GroqClient:
+    """Groq API client wrapper with retry-with-backoff.
 
-    Configurable provider (default: OpenAI). Handles retries, token limits.
     Only used for goal classification and strategy synthesis — never for
     computing or adjusting numeric scores.
     """
 
-    def __init__(self, api_key: str, model: str = "gpt-4o") -> None:
-        self._api_key = api_key
-        self._model = model
+    def __init__(self, api_key: str | None = None) -> None:
+        self._api_key = api_key or os.environ["GROQ_API_KEY"]
+        self._client = groq.Groq(api_key=self._api_key)
 
     def complete(
-        self, system_prompt: str, user_prompt: str, response_format: type | None = None
-    ) -> str:
-        """Send a completion request and return the raw text response.
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        response_format: type[BaseModel] | None = None,
+    ) -> str | dict:
+        """Send a completion request with retry-with-backoff on 429/5xx.
 
-        If response_format (a pydantic model) is provided, instruct the model
-        to return structured JSON matching that schema.
+        Retries up to 3 times with exponential backoff (1s, 2s, 4s).
         """
-        raise NotImplementedError
+        max_retries = 3
+        backoff = 1.0
 
-    @staticmethod
-    def load_prompt(filename: str) -> str:
-        """Load a versioned prompt from llm/prompts/."""
-        prompt_dir = Path(__file__).parent / "prompts"
-        return (prompt_dir / filename).read_text()
+        for attempt in range(max_retries + 1):
+            try:
+                response = self._client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=500,
+                    response_format=(
+                        {"type": "json_object"} if response_format else None
+                    ),
+                )
+                return response.choices[0].message.content
+            except groq.RateLimitError:
+                if attempt == max_retries:
+                    raise
+                time.sleep(backoff)
+                backoff *= 2
+            except groq.APIStatusError as e:
+                if e.status_code < 500 or attempt == max_retries:
+                    raise
+                time.sleep(backoff)
+                backoff *= 2

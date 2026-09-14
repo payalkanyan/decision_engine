@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.commandcode
+
 # Virtual environments
 .venv/
 venv/
@@ -17,6 +17,7 @@ env/
 .idea/
 *.swp
 *.swo
+.commandcode/
 
 # Testing & linting
 .pytest_cache/
