@@ -9,7 +9,7 @@ import respx
 from data.client import CrustdataClient
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
-BASE_URL = "https://api.crustdata.com/v1"
+BASE_URL = "https://api.crustdata.com"
 
 
 def load_fixture(name: str) -> dict:
@@ -30,7 +30,7 @@ def make_client() -> CrustdataClient:
 
 @respx.mock
 def test_get_company_enrichment_parses_response() -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 
@@ -39,20 +39,25 @@ def test_get_company_enrichment_parses_response() -> None:
     assert route.called
     assert route.call_count == 1
     assert result.company.company_name == "TechCorp Inc"
-    assert result.company.employee_count == 250
-    assert result.company.technographics.technologies == ["Python", "PyTorch", "Kubernetes", "AWS"]
+    assert result.company.employee_count == 500
+    assert result.company.technographics.technologies == [
+        "Software Development",
+        "Enterprise Software",
+        "Information Services",
+    ]
 
 
 @respx.mock
 def test_get_company_enrichment_sends_name_param() -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 
     make_client().get_company_enrichment("TechCorp Inc")
 
     request = route.calls.last.request
-    assert request.url.params["name"] == "TechCorp Inc"
+    body = json.loads(request.content)
+    assert body["names"] == ["TechCorp Inc"]
 
 
 @respx.mock
@@ -103,7 +108,7 @@ def test_sends_bearer_auth_header() -> None:
 
 @respx.mock
 def test_retries_on_429_then_succeeds() -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         side_effect=[
             httpx.Response(429, headers={"retry-after": "0"}),
             httpx.Response(200, json=load_fixture("company_enrichment.json")),
@@ -119,7 +124,7 @@ def test_retries_on_429_then_succeeds() -> None:
 
 @respx.mock
 def test_retries_on_500_then_succeeds() -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         side_effect=[
             httpx.Response(500),
             httpx.Response(502),
@@ -136,7 +141,7 @@ def test_retries_on_500_then_succeeds() -> None:
 
 @respx.mock
 def test_raises_after_max_retries_exhausted() -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(500),
     )
 
@@ -148,7 +153,7 @@ def test_raises_after_max_retries_exhausted() -> None:
 
 @respx.mock
 def test_does_not_retry_on_404() -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(404),
     )
 

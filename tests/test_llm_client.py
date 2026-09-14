@@ -44,7 +44,7 @@ class TestGroqClient:
         assert result == "Hello world"
         mock_client.chat.completions.create.assert_called_once()
         call_kwargs = mock_client.chat.completions.create.call_args
-        assert call_kwargs.kwargs["model"] == "mixtral-8x7b-32768"
+        assert call_kwargs.kwargs["model"] == "groq/compound-mini"
         assert call_kwargs.kwargs["temperature"] == 0.3
         assert call_kwargs.kwargs["max_tokens"] == 500
         assert call_kwargs.kwargs["messages"][0]["role"] == "system"

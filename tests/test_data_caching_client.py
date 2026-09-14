@@ -17,7 +17,7 @@ from data.caching_client import (
 )
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
-BASE_URL = "https://api.crustdata.com/v1"
+BASE_URL = "https://api.crustdata.com"
 
 
 def load_fixture(name: str) -> dict:
@@ -39,7 +39,7 @@ def tmp_cache(tmp_path: Path) -> CachingClient:
 
 @respx.mock
 def test_first_call_hits_api_second_call_hits_cache(tmp_cache: CachingClient) -> None:
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 
@@ -82,7 +82,7 @@ def test_error_ttl_is_shorter_than_all_endpoint_ttls() -> None:
 @respx.mock
 def test_5xx_error_is_cached_and_raises_validation_on_retry(tmp_cache: CachingClient) -> None:
     """5xx errors are cached with short TTL; retry hits cache and fails validation."""
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(502),
     )
 
@@ -101,7 +101,7 @@ def test_5xx_error_is_cached_and_raises_validation_on_retry(tmp_cache: CachingCl
 @respx.mock
 def test_4xx_error_is_not_cached(tmp_cache: CachingClient) -> None:
     """4xx errors are NOT cached; each call hits the API."""
-    route = respx.get(f"{BASE_URL}/company/enrichment").mock(
+    route = respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(404),
     )
 
@@ -129,7 +129,7 @@ def test_4xx_error_is_not_cached(tmp_cache: CachingClient) -> None:
 def test_all_endpoints_return_model_with_cache_hit_false(tmp_cache: CachingClient) -> None:
     """Each endpoint returns (model, cache_hit=False) on first call."""
     # Register all mock routes
-    respx.get(f"{BASE_URL}/company/enrichment").mock(
+    respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
     respx.post(f"{BASE_URL}/company/search").mock(
@@ -185,7 +185,7 @@ def test_all_endpoints_return_model_with_cache_hit_false(tmp_cache: CachingClien
 
 @respx.mock
 def test_provenance_has_unique_api_call_id(tmp_cache: CachingClient) -> None:
-    respx.get(f"{BASE_URL}/company/enrichment").mock(
+    respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 
@@ -202,7 +202,7 @@ def test_provenance_has_unique_api_call_id(tmp_cache: CachingClient) -> None:
 def test_provenance_timestamp_is_recent(tmp_cache: CachingClient) -> None:
     from datetime import UTC, datetime
 
-    respx.get(f"{BASE_URL}/company/enrichment").mock(
+    respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 
@@ -215,7 +215,7 @@ def test_provenance_timestamp_is_recent(tmp_cache: CachingClient) -> None:
 
 @respx.mock
 def test_provenance_cache_hit_matches_state(tmp_cache: CachingClient) -> None:
-    respx.get(f"{BASE_URL}/company/enrichment").mock(
+    respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 
@@ -228,7 +228,7 @@ def test_provenance_cache_hit_matches_state(tmp_cache: CachingClient) -> None:
 
 @respx.mock
 def test_provenance_request_fields_matches_params(tmp_cache: CachingClient) -> None:
-    respx.get(f"{BASE_URL}/company/enrichment").mock(
+    respx.post(f"{BASE_URL}/company/enrich").mock(
         return_value=httpx.Response(200, json=load_fixture("company_enrichment.json")),
     )
 

@@ -1,19 +1,23 @@
 import os
 import time
 from contextlib import suppress
+from datetime import date
 
 import httpx
 
 from data.schemas import (
+    CompanyEnrichment,
     CompanyEnrichmentResponse,
     CompanySearchResponse,
     DecisionMakersResponse,
     FundingMilestoneTimeseriesResponse,
+    FundingSummary,
     HeadcountTimeseriesResponse,
     InvestorPortfolioResponse,
     JobsResponse,
     LinkedInPostsResponse,
     PersonScreenerResponse,
+    Technographics,
     WebTrafficResponse,
 )
 
@@ -36,7 +40,7 @@ class CrustdataClient:
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://api.crustdata.com/v1",
+        base_url: str = "https://api.crustdata.com",
         timeout: float = 30.0,
     ) -> None:
         self._api_key = api_key or os.environ["CRUSTDATA_API_KEY"]
@@ -45,6 +49,7 @@ class CrustdataClient:
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Accept": "application/json",
+                "x-api-version": "2025-11-01",
             },
             timeout=timeout,
         )
@@ -98,8 +103,64 @@ class CrustdataClient:
         )
 
     def get_company_enrichment(self, company_name: str) -> CompanyEnrichmentResponse:
-        data = self._request("GET", "/company/enrichment", params={"name": company_name})
-        return CompanyEnrichmentResponse.model_validate(data)
+        """Fetch company enrichment via POST /company/enrich (API v2).
+
+        The response is an array of EnrichResult objects. We take the
+        highest-confidence match and map it onto the legacy CompanyEnrichment
+        schema so scoring criteria stay unchanged.
+        """
+        data = self._request(
+            "POST",
+            "/company/enrich",
+            json_body={
+                "names": [company_name],
+                "fields": ["basic_info", "headcount", "funding", "taxonomy"],
+            },
+        )
+
+        if not data or not isinstance(data, list) or not data[0].get("matches"):
+            return CompanyEnrichmentResponse(
+                company=CompanyEnrichment(company_name=company_name)
+            )
+
+        best = max(data[0]["matches"], key=lambda m: m.get("confidence_score", 0))
+        cd = best.get("company_data", {})
+        basic = cd.get("basic_info") or {}
+        funding = cd.get("funding") or {}
+        headcount = cd.get("headcount") or {}
+        taxonomy = cd.get("taxonomy") or {}
+
+        # technographics isn't available on this API key tier, so we map
+        # taxonomy categories and industries into the Technographics schema
+        # slots the scoring criteria read from.
+        categories = taxonomy.get("categories") or basic.get("industries") or []
+        technologies = taxonomy.get("professional_network_industries") or []
+
+        return CompanyEnrichmentResponse(
+            company=CompanyEnrichment(
+                company_name=basic.get("name") or company_name,
+                domain=basic.get("primary_domain"),
+                industry=basic.get("industries", [None])[0]
+                if basic.get("industries")
+                else None,
+                description=basic.get("description"),
+                employee_count=headcount.get("total"),
+                founded_date=date(basic["year_founded"], 1, 1)
+                if basic.get("year_founded")
+                else None,
+                location=basic.get("headquarters") or basic.get("country"),
+                technographics=Technographics(
+                    technologies=technologies,
+                    categories=categories,
+                ),
+                funding=FundingSummary(
+                    total_raised=funding.get("total_investment_usd"),
+                    latest_round_type=funding.get("last_round_type"),
+                    latest_round_amount=funding.get("last_round_amount_usd"),
+                    latest_round_date=funding.get("last_fundraise_date"),
+                ),
+            )
+        )
 
     def search_companies(self, filters: dict) -> CompanySearchResponse:
         data = self._request("POST", "/company/search", json_body=filters)

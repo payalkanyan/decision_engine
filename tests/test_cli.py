@@ -4,28 +4,41 @@ All external dependencies (CachingClient, LLM) are mocked. The scoring
 engine runs against the real rubric.yaml and mock enrichment data.
 """
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from cli.main import main
 from data.caching_client import ApiProvenanceRecord
-from data.schemas import CompanyEnrichmentResponse
+from data.schemas import (
+    CompanyEnrichment,
+    CompanyEnrichmentResponse,
+    FundingSummary,
+    Technographics,
+)
 from llm.schemas import GoalClassification
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def load_fixture(name: str) -> dict:
-    return json.loads((FIXTURES_DIR / name).read_text())
 
 
 @pytest.fixture
 def mock_enrichment() -> CompanyEnrichmentResponse:
-    return CompanyEnrichmentResponse.model_validate(load_fixture("company_enrichment.json"))
+    return CompanyEnrichmentResponse(
+        company=CompanyEnrichment(
+            company_name="TechCorp Inc",
+            domain="techcorp.com",
+            industry="Enterprise Software",
+            employee_count=500,
+            technographics=Technographics(
+                technologies=["Python", "PyTorch", "Kubernetes", "AWS"],
+                categories=["Cloud Infrastructure", "Developer Tools"],
+            ),
+            funding=FundingSummary(
+                total_raised=50000000,
+                latest_round_type="Series B",
+                latest_round_amount=30000000,
+            ),
+        )
+    )
 
 
 @pytest.fixture

@@ -32,7 +32,7 @@ class GroqClient:
         for attempt in range(max_retries + 1):
             try:
                 response = self._client.chat.completions.create(
-                    model="mixtral-8x7b-32768",
+                    model="groq/compound-mini",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},

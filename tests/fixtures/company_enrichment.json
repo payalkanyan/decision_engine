@@ -1,21 +1,71 @@
-{
-  "company": {
-    "company_name": "TechCorp Inc",
-    "domain": "techcorp.com",
-    "industry": "Software",
-    "description": "AI infrastructure company",
-    "employee_count": 250,
-    "founded_date": "2018-03-15",
-    "location": "San Francisco, CA",
-    "technographics": {
-      "technologies": ["Python", "PyTorch", "Kubernetes", "AWS"],
-      "categories": ["AI/ML", "Cloud Infrastructure"]
-    },
-    "funding": {
-      "total_raised": 45000000,
-      "latest_round_type": "Series B",
-      "latest_round_amount": 25000000,
-      "latest_round_date": "2023-06-01"
-    }
+[
+  {
+    "matched_on": "TechCorp",
+    "match_type": "name",
+    "matches": [
+      {
+        "confidence_score": 1.0,
+        "company_data": {
+          "crustdata_company_id": 12345,
+          "basic_info": {
+            "crustdata_company_id": 12345,
+            "name": "TechCorp Inc",
+            "primary_domain": "techcorp.com",
+            "all_domains": ["techcorp.com"],
+            "website": "https://techcorp.com",
+            "logo_permalink": "https://crustdata-media.s3.us-east-2.amazonaws.com/company/techcorp.jpg",
+            "description": "TechCorp builds enterprise software solutions for data analytics.",
+            "company_type": "Privately Held",
+            "status": "active",
+            "year_founded": 2015,
+            "employee_count_range": "51-200",
+            "markets": ["PRIVATE"],
+            "industries": ["Enterprise Software", "SaaS"],
+            "headquarters": "San Francisco, CA",
+            "country": "United States",
+            "professional_network_url": "https://www.linkedin.com/company/techcorp",
+            "professional_network_id": "1234567"
+          },
+          "headcount": {
+            "total": 500
+          },
+          "funding": {
+            "total_investment_usd": 50000000,
+            "last_round_amount_usd": 30000000,
+            "last_fundraise_date": "2024-06-15",
+            "last_round_type": "Series B",
+            "milestones": [
+              {
+                "date": "2023-03-10",
+                "amount_usd": 20000000,
+                "round_type": "Series A",
+                "investors": ["Tech Ventures"]
+              }
+            ]
+          },
+          "technographics": {
+            "total_technologies": 4,
+            "top_technologies": ["Python", "AWS", "React", "PostgreSQL"],
+            "technologies": [
+              {"name": "Python", "categories": [{"category_slug": "language", "super_slug": "engineering", "score": 0.95}]},
+              {"name": "AWS", "categories": [{"category_slug": "cloud", "super_slug": "infrastructure", "score": 0.9}]},
+              {"name": "React", "categories": [{"category_slug": "framework", "super_slug": "frontend", "score": 0.85}]},
+              {"name": "PostgreSQL", "categories": [{"category_slug": "database", "super_slug": "data", "score": 0.8}]}
+            ],
+            "updated_at": "2024-06-20T10:30:00Z"
+          },
+          "taxonomy": {
+            "professional_network_specialities": ["Data Analytics", "Enterprise Software"],
+            "professional_network_industry": "Computer Software",
+            "professional_network_industries": ["Software Development", "Enterprise Software", "Information Services"],
+            "categories": ["Cloud Infrastructure", "Developer Tools"]
+          },
+          "seo": {
+            "total_organic_results": 500,
+            "monthly_organic_clicks": 10000
+          }
+        }
+      }
+    ]
   }
-}
+]
