@@ -3,7 +3,7 @@ import re
 
 from llm.client import GroqClient
 from llm.schemas import GoalClassification
-from scoring.schemas import PathScore
+from scoring.schemas import CandidateWithScore, PathScore
 
 
 def _default_client() -> GroqClient:
@@ -77,7 +77,7 @@ def classify_goal(goal: str) -> GoalClassification:
 
 
 def synthesize_narrative(
-    path_score: PathScore,
+    path_score: PathScore | None,
     evidence_breakdown: dict,
     target_company: str = "target",
 ) -> str:
@@ -98,3 +98,30 @@ def synthesize_narrative(
     client = _default_client()
     response = client.complete(system, user)
     return response
+
+
+def synthesize_build_reasoning(my_company: str, score: float) -> str:
+    """Generate reasoning for the build path."""
+    return (
+        f"{my_company} has a build score of {score:.1f}/10. "
+        f"Building in-house provides full control over the capability "
+        f"but requires significant investment in talent and infrastructure."
+    )
+
+
+def synthesize_partner_reasoning(candidates: list[CandidateWithScore], score: float) -> str:
+    """Generate reasoning for the partner path."""
+    top = candidates[0].name if candidates else "no candidates"
+    return (
+        f"Partner path scored {score:.1f}/10. Top candidate: {top}. "
+        f"Partnership reduces time-to-market vs building from scratch."
+    )
+
+
+def synthesize_acquire_reasoning(candidates: list[CandidateWithScore], score: float) -> str:
+    """Generate reasoning for the acquire path."""
+    top = candidates[0].name if candidates else "no candidates"
+    return (
+        f"Acquire path scored {score:.1f}/10. Top target: {top}. "
+        f"Acquisition provides fastest path to capability with existing team."
+    )

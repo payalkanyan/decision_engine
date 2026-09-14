@@ -5,9 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from data.caching_client import CachingClient
-from llm.synthesize import classify_goal, synthesize_narrative
-from scoring.engine import Evidence, build_output, score_all
-from scoring.rubric_loader import load_rubric
+from scoring.engine import analyze_strategy, get_candidates, load_rubric_yaml
 
 app = FastAPI(
     title="Build vs Partner vs Acquire Decision Engine",
@@ -25,20 +23,32 @@ app.add_middleware(
 )
 
 
-class RecommendationRequest(BaseModel):
-    goal: str
-    target_company: str
-    requesting_company: str | None = None
+class AnalyzeRequest(BaseModel):
+    my_company: str
+    capability: str
 
 
-class RecommendationResponse(BaseModel):
-    goal: str
-    target_company: str
+class CandidateResponse(BaseModel):
+    name: str
+    score: float
+    reasoning: str
+
+
+class PathAnalysisResponse(BaseModel):
     path: str
     score: float
-    is_close_call: bool
-    narrative: str
-    criteria_breakdown: dict[str, float]
+    reasoning: str
+    timeline_months: int | None = None
+    estimated_cost_usd: int | None = None
+    candidates: list[dict] = []
+
+
+class AnalyzeResponse(BaseModel):
+    my_company: str
+    capability: str
+    build_analysis: PathAnalysisResponse
+    partner_analysis: PathAnalysisResponse
+    acquire_analysis: PathAnalysisResponse
 
 
 @app.get("/health")
@@ -47,68 +57,76 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/recommend", response_model=RecommendationResponse)
-def recommend(req: RecommendationRequest) -> RecommendationResponse:
-    """Get a Build/Partner/Acquire recommendation for a target company and goal.
+@app.post("/analyze-strategy", response_model=AnalyzeResponse)
+def analyze_strategy_endpoint(req: AnalyzeRequest) -> AnalyzeResponse:
+    """Analyze Build vs Partner vs Acquire strategy for a company and capability.
 
     Args:
-        goal: Strategic capability goal (e.g. "We want to enter AI voice")
-        target_company: Target company name (e.g. "Stripe")
-        requesting_company: Your company name (optional)
+        my_company: Your company name (e.g. "Acme Corp")
+        capability: Capability to analyze (e.g. "AI voice")
 
     Returns:
-        Recommendation with path, score, narrative, and evidence breakdown
+        Per-path analysis with scores, reasoning, and candidate lists
     """
     try:
-        # 1. Classify goal
-        classification = classify_goal(req.goal)
-
-        # 2. Fetch target company data
+        # 1. Fetch my company data
         caching_client = CachingClient()
-        target_data, provenance = caching_client.get_company_enrichment(
-            req.target_company
+        my_company_data, _ = caching_client.get_company_enrichment(
+            req.my_company
         )
 
-        # 3. Build evidence and score all 3 paths
-        rubric = load_rubric("rubric.yaml")
-        evidence = Evidence(
-            taxonomy_tags=classification.taxonomy_tags,
-            own_enrichment=target_data,
-            candidate_enrichment=target_data,
-            acquire_enrichment=target_data,
-            api_call_ids={
-                "own_enrichment": provenance.api_call_id,
-                "candidate_enrichment": provenance.api_call_id,
-                "acquire_enrichment": provenance.api_call_id,
-            },
+        # 2. Get candidates for each path
+        build_candidates = get_candidates(caching_client, req.capability, "build")
+        partner_candidates = get_candidates(caching_client, req.capability, "partner")
+        acquire_candidates = get_candidates(caching_client, req.capability, "acquire")
+
+        # 3. Run strategy analysis with per-path candidates
+        rubric = load_rubric_yaml("rubric.yaml")
+        analysis = analyze_strategy(
+            my_company=req.my_company,
+            capability=req.capability,
+            my_company_enrichment=my_company_data,
+            candidates=partner_candidates or acquire_candidates or build_candidates,
+            rubric=rubric,
         )
 
-        # 4. Score all 3 paths
-        scores = score_all(rubric, evidence)
-
-        # 5. Build output
-        output = build_output(scores, rubric)
-
-        # 6. Generate narrative
-        top_path = output.recommendation.primary_path
-        top_path_score = next(s for s in scores if s.path == top_path)
-        narrative = synthesize_narrative(
-            top_path_score,
-            output.final_scores,
-            req.target_company,
-        )
-
-        # 7. Build response
-        return RecommendationResponse(
-            goal=req.goal,
-            target_company=req.target_company,
-            path=top_path,
-            score=round(top_path_score.score, 1),
-            is_close_call=output.recommendation.is_close_call,
-            narrative=narrative,
-            criteria_breakdown={
-                c.criterion_id: round(c.score, 1) for c in top_path_score.criteria
-            },
+        # 4. Build response
+        return AnalyzeResponse(
+            my_company=req.my_company,
+            capability=req.capability,
+            build_analysis=PathAnalysisResponse(
+                path="build",
+                score=analysis.build_analysis.score,
+                reasoning=analysis.build_analysis.reasoning,
+                timeline_months=analysis.build_analysis.timeline_months,
+                estimated_cost_usd=analysis.build_analysis.estimated_cost_usd,
+            ),
+            partner_analysis=PathAnalysisResponse(
+                path="partner",
+                score=analysis.partner_analysis.score,
+                reasoning=analysis.partner_analysis.reasoning,
+                candidates=[
+                    {
+                        "name": c.name,
+                        "score": c.score,
+                        "reasoning": c.reasoning,
+                    }
+                    for c in analysis.partner_analysis.candidates
+                ],
+            ),
+            acquire_analysis=PathAnalysisResponse(
+                path="acquire",
+                score=analysis.acquire_analysis.score,
+                reasoning=analysis.acquire_analysis.reasoning,
+                candidates=[
+                    {
+                        "name": c.name,
+                        "score": c.score,
+                        "reasoning": c.reasoning,
+                    }
+                    for c in analysis.acquire_analysis.candidates
+                ],
+            ),
         )
 
     except Exception as e:

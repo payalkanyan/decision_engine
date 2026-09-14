@@ -47,7 +47,7 @@ def mock_provenance() -> ApiProvenanceRecord:
         api_call_id="test-api-call-id",
         timestamp=datetime.now(UTC),
         cache_hit=False,
-        request_fields=["name=Stripe"],
+        request_fields=["name=Acme"],
     )
 
 
@@ -63,213 +63,121 @@ def mock_classification() -> GoalClassification:
     )
 
 
+@pytest.fixture
+def mock_candidates() -> list[CompanyEnrichmentResponse]:
+    """Return 3 mock candidate companies for partner/acquire paths."""
+    return [
+        CompanyEnrichmentResponse(
+            company=CompanyEnrichment(
+                company_name=f"Candidate {i}",
+                domain=f"candidate{i}.com",
+                industry="AI Voice",
+                employee_count=50 + i * 20,
+                technographics=Technographics(
+                    technologies=["Python", "AWS"],
+                    categories=["AI"],
+                ),
+                funding=FundingSummary(
+                    total_raised=10000000 * (i + 1),
+                    latest_round_type="Series A",
+                    latest_round_amount=5000000,
+                ),
+            )
+        )
+        for i in range(3)
+    ]
+
+
 class TestCLIParsing:
-    def test_cli_requires_goal(self) -> None:
-        with patch("sys.argv", ["cli", "--target-company", "Stripe"]), pytest.raises(SystemExit):
+    def test_cli_requires_my_company(self) -> None:
+        with patch("sys.argv", ["cli", "--capability", "AI voice"]), pytest.raises(SystemExit):
             main()
 
-    def test_cli_requires_target_company(self) -> None:
-        with patch("sys.argv", ["cli", "--goal", "AI voice"]), pytest.raises(SystemExit):
+    def test_cli_requires_capability(self) -> None:
+        with patch("sys.argv", ["cli", "--my-company", "Acme"]), pytest.raises(SystemExit):
             main()
 
 
 class TestCLIPipeline:
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
+    @patch("cli.main.synthesize_build_reasoning")
+    @patch("cli.main.synthesize_partner_reasoning")
+    @patch("cli.main.synthesize_acquire_reasoning")
+    @patch("cli.main.get_candidates")
     @patch("cli.main.CachingClient")
-    def test_cli_parses_args_and_calls_enrichment(
+    def test_cli_calls_enrichment_and_candidates(
         self,
         mock_client_cls,
-        mock_classify,
-        mock_synthesize,
+        mock_get_candidates,
+        mock_partner_reason,
+        mock_build_reason,
+        mock_acquire_reason,
         mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
-        mock_classification: GoalClassification,
+        mock_candidates: list[CompanyEnrichmentResponse],
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative."
+        mock_get_candidates.return_value = mock_candidates
 
-        with patch(
-            "sys.argv",
-            ["cli", "--goal", "We want to enter AI voice", "--target-company", "Stripe"],
-        ):
+        with patch("sys.argv", ["cli", "--my-company", "Acme", "--capability", "AI voice"]):
             main()
 
-        mock_classify.assert_called_once_with("We want to enter AI voice")
-        mock_client.get_company_enrichment.assert_called_once_with("Stripe")
+        mock_client.get_company_enrichment.assert_called_with("Acme")
+        assert mock_get_candidates.call_count == 3  # build, partner, acquire
 
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
+    @patch("cli.main.synthesize_build_reasoning")
+    @patch("cli.main.synthesize_partner_reasoning")
+    @patch("cli.main.synthesize_acquire_reasoning")
+    @patch("cli.main.get_candidates")
     @patch("cli.main.CachingClient")
-    def test_cli_prints_recommendation_with_path_score_narrative(
+    def test_cli_prints_strategy_analysis(
         self,
         mock_client_cls,
-        mock_classify,
-        mock_synthesize,
-        mock_enrichment,
-        mock_provenance,
-        mock_classification,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        mock_client = mock_client_cls.return_value
-        mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative for Stripe."
-
-        with patch(
-            "sys.argv",
-            ["cli", "--goal", "We want to enter AI voice", "--target-company", "Stripe"],
-        ):
-            main()
-
-        captured = capsys.readouterr()
-        assert "RECOMMENDATION:" in captured.out
-        assert "/10" in captured.out
-        assert "Mock narrative for Stripe." in captured.out
-        assert "Evidence breakdown:" in captured.out
-
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
-    @patch("cli.main.CachingClient")
-    def test_cli_prints_taxonomy_tags(
-        self,
-        mock_client_cls,
-        mock_classify,
-        mock_synthesize,
-        mock_enrichment,
-        mock_provenance,
-        mock_classification,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        mock_client = mock_client_cls.return_value
-        mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative."
-
-        with patch(
-            "sys.argv",
-            ["cli", "--goal", "We want to enter AI voice", "--target-company", "Stripe"],
-        ):
-            main()
-
-        captured = capsys.readouterr()
-        assert "Capability tags:" in captured.out
-        assert "ai/ml" in captured.out
-
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
-    @patch("cli.main.CachingClient")
-    def test_cli_reports_cache_hit(
-        self,
-        mock_client_cls,
-        mock_classify,
-        mock_synthesize,
-        mock_enrichment,
+        mock_get_candidates,
+        mock_partner_reason,
+        mock_build_reason,
+        mock_acquire_reason,
+        mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
-        mock_classification,
+        mock_candidates: list[CompanyEnrichmentResponse],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        mock_provenance.cache_hit = True
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative."
+        mock_get_candidates.return_value = mock_candidates
 
-        with patch(
-            "sys.argv",
-            ["cli", "--goal", "AI voice", "--target-company", "Stripe"],
-        ):
+        with patch("sys.argv", ["cli", "--my-company", "Acme", "--capability", "AI voice"]):
             main()
 
         captured = capsys.readouterr()
-        assert "cache_hit=True" in captured.out
+        assert "Acme" in captured.out
+        assert "AI voice" in captured.out
+        assert "Build:" in captured.out
+        assert "Partner:" in captured.out
+        assert "Acquire:" in captured.out
 
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
+    @patch("cli.main.synthesize_build_reasoning")
+    @patch("cli.main.synthesize_partner_reasoning")
+    @patch("cli.main.synthesize_acquire_reasoning")
+    @patch("cli.main.get_candidates")
     @patch("cli.main.CachingClient")
     def test_cli_error_propagates(
         self,
         mock_client_cls,
-        mock_classify,
-        mock_synthesize,
-        mock_enrichment,
-        mock_provenance,
-        mock_classification,
+        mock_get_candidates,
+        mock_partner_reason,
+        mock_build_reason,
+        mock_acquire_reason,
+        mock_enrichment: CompanyEnrichmentResponse,
+        mock_provenance: ApiProvenanceRecord,
+        mock_candidates: list[CompanyEnrichmentResponse],
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.side_effect = ValueError("Company not found: UnknownCo")
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative."
+        mock_get_candidates.return_value = mock_candidates
 
         with patch(
             "sys.argv",
-            ["cli", "--goal", "AI voice", "--target-company", "UnknownCo"],
+            ["cli", "--my-company", "UnknownCo", "--capability", "AI voice"],
         ), pytest.raises(ValueError, match="Company not found"):
             main()
-
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
-    @patch("cli.main.CachingClient")
-    def test_cli_synthesize_narrative_called_with_correct_args(
-        self,
-        mock_client_cls,
-        mock_classify,
-        mock_synthesize,
-        mock_enrichment,
-        mock_provenance,
-        mock_classification,
-    ) -> None:
-        mock_client = mock_client_cls.return_value
-        mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative."
-
-        with patch(
-            "sys.argv",
-            ["cli", "--goal", "We want to enter AI voice", "--target-company", "Stripe"],
-        ):
-            main()
-
-        assert mock_synthesize.call_count == 1
-        call_args = mock_synthesize.call_args
-        evidence_breakdown = call_args[0][1]
-        assert "build" in evidence_breakdown
-        assert "partner" in evidence_breakdown
-        assert "acquire" in evidence_breakdown
-        assert call_args[0][2] == "Stripe"
-
-    @patch("cli.main.synthesize_narrative")
-    @patch("cli.main.classify_goal")
-    @patch("cli.main.CachingClient")
-    def test_cli_accepts_requesting_company(
-        self,
-        mock_client_cls,
-        mock_classify,
-        mock_synthesize,
-        mock_enrichment,
-        mock_provenance,
-        mock_classification,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        mock_client = mock_client_cls.return_value
-        mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
-        mock_classify.return_value = mock_classification
-        mock_synthesize.return_value = "Mock narrative."
-
-        with patch(
-            "sys.argv",
-            [
-                "cli",
-                "--goal",
-                "AI voice",
-                "--target-company",
-                "Stripe",
-                "--requesting-company",
-                "Acme",
-            ],
-        ):
-            main()
-
-        mock_client.get_company_enrichment.assert_called_once_with("Stripe")

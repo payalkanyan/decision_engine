@@ -1,9 +1,12 @@
 import argparse
 
 from data.caching_client import CachingClient
-from llm.synthesize import classify_goal, synthesize_narrative
-from scoring.engine import Evidence, build_output, score_all
-from scoring.rubric_loader import load_rubric
+from llm.synthesize import (
+    synthesize_acquire_reasoning,
+    synthesize_build_reasoning,
+    synthesize_partner_reasoning,
+)
+from scoring.engine import analyze_strategy, get_candidates, load_rubric_yaml
 
 
 def main() -> None:
@@ -11,75 +14,71 @@ def main() -> None:
         description="Build vs Partner vs Acquire Decision Engine"
     )
     parser.add_argument(
-        "--goal", required=True, help="e.g. 'We want to enter AI voice'"
+        "--my-company", required=True, help="Your company name"
     )
     parser.add_argument(
-        "--target-company", required=True, help="e.g. 'Stripe'"
-    )
-    parser.add_argument(
-        "--requesting-company", default=None, help="Your company name (optional)"
+        "--capability", required=True, help="Capability to analyze, e.g. 'AI voice'"
     )
     args = parser.parse_args()
 
     try:
-        # 1. Classify goal → capability tags
-        print(f"\n📊 Analyzing: {args.goal}")
-        print(f"Target: {args.target_company}")
-        print("\nClassifying goal...")
-        classification = classify_goal(args.goal)
-        print(f"Capability tags: {', '.join(classification.taxonomy_tags)}")
-
-        # 2. Fetch target company data
-        print(f"\nFetching {args.target_company} data...")
+        # 1. Fetch my company data
+        print(f"\n📊 Analyzing strategy for {args.my_company}")
+        print(f"Capability: {args.capability}")
+        print("\nFetching company data...")
         caching_client = CachingClient()
-        target_data, provenance = caching_client.get_company_enrichment(
-            args.target_company
+        my_company_data, provenance = caching_client.get_company_enrichment(
+            args.my_company
         )
         print(f"Data fetched (cache_hit={provenance.cache_hit})")
 
-        # 3. Build evidence and score all 3 paths
+        # 2. Get candidates for each path
+        print("\nSearching for candidates...")
+        build_candidates = get_candidates(caching_client, args.capability, "build")
+        partner_candidates = get_candidates(caching_client, args.capability, "partner")
+        acquire_candidates = get_candidates(caching_client, args.capability, "acquire")
+        print(
+            f"Found {len(build_candidates)} build, "
+            f"{len(partner_candidates)} partner, "
+            f"{len(acquire_candidates)} acquire candidates"
+        )
+
+        # 3. Run strategy analysis
         print("\nScoring all 3 paths...")
-        rubric = load_rubric("rubric.yaml")
-        evidence = Evidence(
-            taxonomy_tags=classification.taxonomy_tags,
-            own_enrichment=target_data,
-            candidate_enrichment=target_data,
-            acquire_enrichment=target_data,
-            api_call_ids={
-                "own_enrichment": provenance.api_call_id,
-                "candidate_enrichment": provenance.api_call_id,
-                "acquire_enrichment": provenance.api_call_id,
-            },
-        )
-        scores = score_all(rubric, evidence)
-
-        # 4. Build output & pick recommendation
-        output = build_output(scores, rubric)
-
-        # 5. Generate narrative
-        top_path = output.recommendation.primary_path
-        top_path_score = next(s for s in scores if s.path == top_path)
-        print("Generating recommendation narrative...")
-        narrative = synthesize_narrative(
-            top_path_score,
-            output.final_scores,
-            args.target_company,
+        rubric = load_rubric_yaml("rubric.yaml")
+        analysis = analyze_strategy(
+            my_company=args.my_company,
+            capability=args.capability,
+            my_company_enrichment=my_company_data,
+            candidates=partner_candidates or acquire_candidates or build_candidates,
+            rubric=rubric,
         )
 
-        # 6. Print output
+        # 4. Generate reasoning for each path
+        build_reasoning = synthesize_build_reasoning(
+            args.my_company, analysis.build_analysis.score
+        )
+        partner_reasoning = synthesize_partner_reasoning(
+            analysis.partner_analysis.candidates, analysis.partner_analysis.score
+        )
+        acquire_reasoning = synthesize_acquire_reasoning(
+            analysis.acquire_analysis.candidates, analysis.acquire_analysis.score
+        )
+
+        # 5. Print output
         print(f"\n{'=' * 50}")
-        print(f"RECOMMENDATION: {top_path.upper()}")
-        print(f"Score: {top_path_score.score:.1f}/10")
-        print(f"Close call: {output.recommendation.is_close_call}")
+        print(f"STRATEGY ANALYSIS: {args.my_company} — {args.capability}")
         print(f"{'=' * 50}")
-        print(f"\n{narrative}")
-        print("\nEvidence breakdown:")
-        for criterion in top_path_score.criteria:
-            if criterion.evidence:
-                print(
-                    f"  • {criterion.criterion_id}: "
-                    f"{criterion.evidence.raw_value} → {criterion.score:.1f}/10"
-                )
+        print(f"\nBuild: {analysis.build_analysis.score:.1f}/10")
+        print(f"  Timeline: {analysis.build_analysis.timeline_months} months")
+        print(f"  Estimated cost: ${analysis.build_analysis.estimated_cost_usd:,}")
+        print(f"  {build_reasoning}")
+        print(f"\nPartner: {analysis.partner_analysis.score:.1f}/10")
+        print(f"  Candidates: {len(analysis.partner_analysis.candidates)}")
+        print(f"  {partner_reasoning}")
+        print(f"\nAcquire: {analysis.acquire_analysis.score:.1f}/10")
+        print(f"  Candidates: {len(analysis.acquire_analysis.candidates)}")
+        print(f"  {acquire_reasoning}")
 
     except Exception as e:
         print(f"Error: {e}")

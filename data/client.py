@@ -9,6 +9,7 @@ from data.schemas import (
     CompanyEnrichment,
     CompanyEnrichmentResponse,
     CompanySearchResponse,
+    CompanySearchResult,
     DecisionMakersResponse,
     FundingMilestoneTimeseriesResponse,
     FundingSummary,
@@ -163,8 +164,30 @@ class CrustdataClient:
         )
 
     def search_companies(self, filters: dict) -> CompanySearchResponse:
+        """Search the Crustdata company database.
+
+        ``filters`` is sent verbatim as the JSON request body so callers can
+        pass ``search``, ``filters`` (field/type/value), ``limit``, etc. per
+        the Crustdata `/company/search` API spec. The raw ``companies`` array
+        is mapped onto the internal flat ``CompanySearchResponse`` schema.
+        """
         data = self._request("POST", "/company/search", json_body=filters)
-        return CompanySearchResponse.model_validate(data)
+        companies = data.get("companies", []) if data else []
+        total_count = data.get("total_count") or len(companies) if data else 0
+
+        results = [
+            CompanySearchResult(
+                name=(c.get("basic_info") or {}).get("name", ""),
+                domain=(c.get("basic_info") or {}).get("primary_domain"),
+                industry=((c.get("basic_info") or {}).get("industries") or [None])[0],
+                employee_count=(c.get("headcount") or {}).get("total"),
+                total_funding=(c.get("funding") or {}).get("total_investment_usd"),
+                description=(c.get("basic_info") or {}).get("description"),
+            )
+            for c in companies
+        ]
+
+        return CompanySearchResponse(results=results, total_count=total_count)
 
     def get_jobs(
         self, company_name: str | None = None, filters: dict | None = None

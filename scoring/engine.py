@@ -1,4 +1,6 @@
+import time
 from datetime import datetime
+from typing import Any
 
 from data.schemas import (
     CompanyEnrichmentResponse,
@@ -17,12 +19,17 @@ from scoring.criteria import build as build_criteria
 from scoring.criteria import partner as partner_criteria
 from scoring.rubric_loader import load_rubric
 from scoring.schemas import (
+    AcquireAnalysis,
     AnalysisOutput,
+    BuildAnalysis,
     CandidateCompany,
+    CandidateWithScore,
     CriterionScore,
+    PartnerAnalysis,
     PathScore,
     Recommendation,
     Rubric,
+    StrategyAnalysis,
 )
 
 
@@ -431,3 +438,154 @@ def build_output(
         assumptions_and_gaps=assumptions_and_gaps or [],
         generated_at=datetime.utcnow(),
     )
+
+
+def get_candidates(
+    caching_client: Any,
+    capability: str,
+    path: str,
+) -> list[CompanyEnrichmentResponse]:
+    """Search Crustdata for companies matching the capability for a given path.
+
+    Uses the caching_client to call Crustdata search, then enriches
+    each result. Returns a list of enriched company responses.
+    """
+
+    taxonomy_map = {
+        "build": ["voice ai", "nlp", "speech to text", "ml", "ai"],
+        "partner": ["voice ai", "api", "platform", "machine learning"],
+        "acquire": ["voice ai", "saas", "ai startup", "speech ai"],
+    }
+    tags = taxonomy_map.get(path, [capability.lower()])
+
+    # Build a keyword-rich query combining the capability and the path's
+    # taxonomy terms. The hybrid search mode will match across company names,
+    # descriptions, and indexed fields.
+    search_query = " ".join([capability] + tags)
+
+    search_results, _ = caching_client.search_companies(
+        filters={
+            "search": {"query": search_query, "mode": "hybrid"},
+            "limit": 5,
+        },
+    )
+    if not search_results or not search_results.results:
+        return []
+
+    candidates: list[CompanyEnrichmentResponse] = []
+    for result in search_results.results[:5]:
+        enrichment, _ = caching_client.get_company_enrichment(result.name)
+        if enrichment:
+            candidates.append(enrichment)
+        time.sleep(2)  # Pace enrichment calls to stay within Crustdata rate limits
+    return candidates
+
+
+def analyze_strategy(
+    my_company: str,
+    capability: str,
+    my_company_enrichment: CompanyEnrichmentResponse | None,
+    candidates: list[CompanyEnrichmentResponse],
+    rubric: Rubric,
+) -> StrategyAnalysis:
+    """Run full strategy analysis: build, partner, acquire for my_company + capability.
+
+    Returns a StrategyAnalysis with per-path analysis including candidate lists.
+    """
+    taxonomy_tags = [capability.lower()]
+
+    # ── Build path ──────────────────────────────────────────
+    build_evidence = Evidence(
+        taxonomy_tags=taxonomy_tags,
+        own_enrichment=my_company_enrichment,
+    )
+    build_score = score_build_path(build_evidence, rubric)
+
+    # ── Partner path ────────────────────────────────────────
+    partner_evidence = Evidence(
+        taxonomy_tags=taxonomy_tags,
+        candidate_search=None,
+        candidate_enrichment=candidates[0] if candidates else None,
+    )
+    partner_score = score_partner_path(partner_evidence, rubric)
+    partner_candidates = rank_candidates(candidates, partner_score.score)
+
+    # ── Acquire path ────────────────────────────────────────
+    acquire_evidence = Evidence(
+        taxonomy_tags=taxonomy_tags,
+        acquire_enrichment=candidates[0] if candidates else None,
+    )
+    acquire_score = score_acquire_path(acquire_evidence, rubric)
+    acquire_candidates = rank_candidates(candidates, acquire_score.score)
+
+    # ── Assemble per-path analyses ──────────────────────────
+    build_analysis = BuildAnalysis(
+        score=build_score.score,
+        reasoning=f"Build path scored {build_score.score:.1f}/10 based on internal readiness.",
+        timeline_months=_estimate_timeline(build_score.score),
+        estimated_cost_usd=_estimate_cost(build_score.score),
+    )
+
+    partner_analysis = PartnerAnalysis(
+        score=partner_score.score,
+        reasoning=f"Partner path scored {partner_score.score:.1f}/10 based on ecosystem fit.",
+        candidates=partner_candidates,
+    )
+
+    acquire_analysis = AcquireAnalysis(
+        score=acquire_score.score,
+        reasoning=f"Acquire path scored {acquire_score.score:.1f}/10 based on target availability.",
+        candidates=acquire_candidates,
+    )
+
+    return StrategyAnalysis(
+        my_company=my_company,
+        capability=capability,
+        build_analysis=build_analysis,
+        partner_analysis=partner_analysis,
+        acquire_analysis=acquire_analysis,
+    )
+
+
+def rank_candidates(
+    candidates: list[CompanyEnrichmentResponse],
+    base_score: float,
+) -> list[CandidateWithScore]:
+    """Rank candidates by a heuristic score derived from the base path score."""
+    ranked: list[CandidateWithScore] = []
+    for c in candidates:
+        name = c.company.company_name
+        headcount = c.company.employee_count or 0
+        funding = c.company.funding.total_raised if c.company.funding else 0
+
+        # Heuristic: smaller + funded = better acquisition target
+        size_factor = max(0, 10 - headcount / 50) if headcount else 5
+        funding_factor = min(10, funding / 1_000_000) if funding else 0
+        score = round(min(10, base_score * 0.6 + size_factor * 0.2 + funding_factor * 0.2), 2)
+
+        ranked.append(
+            CandidateWithScore(
+                name=name,
+                path_relevance="acquire",
+                key_signals=[c.company.industry] if c.company.industry else [],
+                decision_makers=[],
+                score=score,
+                reasoning=(
+                    f"Score {score:.1f}/10 based on "
+                    f"size ({headcount} employees) "
+                    f"and funding (${funding:,})"
+                ),
+            )
+        )
+    ranked.sort(key=lambda c: c.score, reverse=True)
+    return ranked
+
+
+def _estimate_timeline(score: float) -> int:
+    """Estimate months to capability based on build score."""
+    return max(3, int((10 - score) * 4))
+
+
+def _estimate_cost(score: float) -> int:
+    """Estimate USD cost based on build score."""
+    return int((10 - score) * 1_000_000 + 500_000)
