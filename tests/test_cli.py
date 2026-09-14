@@ -4,7 +4,7 @@ All external dependencies (CachingClient, LLM) are mocked. The scoring
 engine runs against the real rubric.yaml and mock enrichment data.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +15,10 @@ from data.schemas import (
     CompanyEnrichment,
     CompanyEnrichmentResponse,
     FundingSummary,
+    HeadcountDataPoint,
+    HeadcountTimeseriesResponse,
+    JobPosting,
+    JobsResponse,
     Technographics,
 )
 from llm.schemas import GoalClassification
@@ -30,7 +34,7 @@ def mock_enrichment() -> CompanyEnrichmentResponse:
             employee_count=500,
             technographics=Technographics(
                 technologies=["Python", "PyTorch", "Kubernetes", "AWS"],
-                categories=["Cloud Infrastructure", "Developer Tools"],
+                categories=["Cloud Infrastructure", "Developer Tools", "AI"],
             ),
             funding=FundingSummary(
                 total_raised=50000000,
@@ -48,6 +52,35 @@ def mock_provenance() -> ApiProvenanceRecord:
         timestamp=datetime.now(UTC),
         cache_hit=False,
         request_fields=["name=Acme"],
+    )
+
+
+@pytest.fixture
+def mock_jobs() -> JobsResponse:
+    """Mock jobs for the requesting company (enough for strong hiring velocity)."""
+    return JobsResponse(
+        jobs=[
+            JobPosting(
+                title=f"AI/ML Engineer {i}",
+                department="Engineering",
+                company_name="TechCorp Inc",
+                posted_date=date(2024, 1, 15),
+            )
+            for i in range(12)
+        ],
+        total_count=12,
+    )
+
+
+@pytest.fixture
+def mock_headcount() -> HeadcountTimeseriesResponse:
+    """Mock headcount timeseries for the requesting company."""
+    return HeadcountTimeseriesResponse(
+        company_name="TechCorp Inc",
+        series=[
+            HeadcountDataPoint(date=date(2024, 1, 1), headcount=500),
+            HeadcountDataPoint(date=date(2024, 6, 1), headcount=550),
+        ],
     )
 
 
@@ -114,9 +147,16 @@ class TestCLIPipeline:
         mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
         mock_candidates: list[CompanyEnrichmentResponse],
+        mock_jobs: JobsResponse,
+        mock_headcount: HeadcountTimeseriesResponse,
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
+        mock_client.get_jobs.return_value = (mock_jobs, mock_provenance)
+        mock_client.get_headcount_timeseries.return_value = (
+            mock_headcount,
+            mock_provenance,
+        )
         mock_get_candidates.return_value = mock_candidates
 
         with patch("sys.argv", ["cli", "--my-company", "Acme", "--capability", "AI voice"]):
@@ -140,10 +180,17 @@ class TestCLIPipeline:
         mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
         mock_candidates: list[CompanyEnrichmentResponse],
+        mock_jobs: JobsResponse,
+        mock_headcount: HeadcountTimeseriesResponse,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (mock_enrichment, mock_provenance)
+        mock_client.get_jobs.return_value = (mock_jobs, mock_provenance)
+        mock_client.get_headcount_timeseries.return_value = (
+            mock_headcount,
+            mock_provenance,
+        )
         mock_get_candidates.return_value = mock_candidates
 
         with patch("sys.argv", ["cli", "--my-company", "Acme", "--capability", "AI voice"]):
@@ -176,8 +223,11 @@ class TestCLIPipeline:
         mock_client.get_company_enrichment.side_effect = ValueError("Company not found: UnknownCo")
         mock_get_candidates.return_value = mock_candidates
 
-        with patch(
-            "sys.argv",
-            ["cli", "--my-company", "UnknownCo", "--capability", "AI voice"],
-        ), pytest.raises(ValueError, match="Company not found"):
+        with (
+            patch(
+                "sys.argv",
+                ["cli", "--my-company", "UnknownCo", "--capability", "AI voice"],
+            ),
+            pytest.raises(ValueError, match="Company not found"),
+        ):
             main()

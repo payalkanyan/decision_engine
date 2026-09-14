@@ -485,6 +485,8 @@ def analyze_strategy(
     my_company: str,
     capability: str,
     my_company_enrichment: CompanyEnrichmentResponse | None,
+    my_company_jobs: JobsResponse | None,
+    my_company_headcount: HeadcountTimeseriesResponse | None,
     candidates: list[CompanyEnrichmentResponse],
     rubric: Rubric,
 ) -> StrategyAnalysis:
@@ -497,6 +499,8 @@ def analyze_strategy(
     # ── Build path ──────────────────────────────────────────
     build_evidence = Evidence(
         taxonomy_tags=taxonomy_tags,
+        own_jobs=my_company_jobs,
+        own_headcount=my_company_headcount,
         own_enrichment=my_company_enrichment,
     )
     build_score = score_build_path(build_evidence, rubric)

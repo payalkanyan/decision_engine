@@ -71,9 +71,9 @@ def analyze_strategy_endpoint(req: AnalyzeRequest) -> AnalyzeResponse:
     try:
         # 1. Fetch my company data
         caching_client = CachingClient()
-        my_company_data, _ = caching_client.get_company_enrichment(
-            req.my_company
-        )
+        my_company_data, _ = caching_client.get_company_enrichment(req.my_company)
+        my_company_jobs, _ = caching_client.get_jobs(req.my_company)
+        my_company_headcount, _ = caching_client.get_headcount_timeseries(req.my_company)
 
         # 2. Get candidates for each path
         build_candidates = get_candidates(caching_client, req.capability, "build")
@@ -86,6 +86,8 @@ def analyze_strategy_endpoint(req: AnalyzeRequest) -> AnalyzeResponse:
             my_company=req.my_company,
             capability=req.capability,
             my_company_enrichment=my_company_data,
+            my_company_jobs=my_company_jobs,
+            my_company_headcount=my_company_headcount,
             candidates=partner_candidates or acquire_candidates or build_candidates,
             rubric=rubric,
         )

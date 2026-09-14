@@ -10,12 +10,8 @@ from scoring.engine import analyze_strategy, get_candidates, load_rubric_yaml
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Build vs Partner vs Acquire Decision Engine"
-    )
-    parser.add_argument(
-        "--my-company", required=True, help="Your company name"
-    )
+    parser = argparse.ArgumentParser(description="Build vs Partner vs Acquire Decision Engine")
+    parser.add_argument("--my-company", required=True, help="Your company name")
     parser.add_argument(
         "--capability", required=True, help="Capability to analyze, e.g. 'AI voice'"
     )
@@ -27,10 +23,12 @@ def main() -> None:
         print(f"Capability: {args.capability}")
         print("\nFetching company data...")
         caching_client = CachingClient()
-        my_company_data, provenance = caching_client.get_company_enrichment(
-            args.my_company
-        )
+        my_company_data, provenance = caching_client.get_company_enrichment(args.my_company)
         print(f"Data fetched (cache_hit={provenance.cache_hit})")
+
+        # 1b. Fetch own company's jobs + headcount for build path scoring
+        my_company_jobs, _ = caching_client.get_jobs(args.my_company)
+        my_company_headcount, _ = caching_client.get_headcount_timeseries(args.my_company)
 
         # 2. Get candidates for each path
         print("\nSearching for candidates...")
@@ -50,14 +48,14 @@ def main() -> None:
             my_company=args.my_company,
             capability=args.capability,
             my_company_enrichment=my_company_data,
+            my_company_jobs=my_company_jobs,
+            my_company_headcount=my_company_headcount,
             candidates=partner_candidates or acquire_candidates or build_candidates,
             rubric=rubric,
         )
 
         # 4. Generate reasoning for each path
-        build_reasoning = synthesize_build_reasoning(
-            args.my_company, analysis.build_analysis.score
-        )
+        build_reasoning = synthesize_build_reasoning(args.my_company, analysis.build_analysis.score)
         partner_reasoning = synthesize_partner_reasoning(
             analysis.partner_analysis.candidates, analysis.partner_analysis.score
         )

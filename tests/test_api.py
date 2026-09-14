@@ -5,7 +5,7 @@ engine runs against the real rubric.yaml and mock enrichment data.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,6 +18,10 @@ from data.schemas import (
     CompanyEnrichment,
     CompanyEnrichmentResponse,
     FundingSummary,
+    HeadcountDataPoint,
+    HeadcountTimeseriesResponse,
+    JobPosting,
+    JobsResponse,
     Technographics,
 )
 from llm.schemas import GoalClassification
@@ -39,7 +43,7 @@ def mock_enrichment() -> CompanyEnrichmentResponse:
             employee_count=500,
             technographics=Technographics(
                 technologies=["Python", "PyTorch", "Kubernetes", "AWS"],
-                categories=["Cloud Infrastructure", "Developer Tools"],
+                categories=["Cloud Infrastructure", "Developer Tools", "AI"],
             ),
             funding=FundingSummary(
                 total_raised=50000000,
@@ -47,6 +51,35 @@ def mock_enrichment() -> CompanyEnrichmentResponse:
                 latest_round_amount=30000000,
             ),
         )
+    )
+
+
+@pytest.fixture
+def mock_jobs() -> JobsResponse:
+    """Mock jobs for the requesting company (enough for strong hiring velocity)."""
+    return JobsResponse(
+        jobs=[
+            JobPosting(
+                title=f"AI/ML Engineer {i}",
+                department="Engineering",
+                company_name="TechCorp Inc",
+                posted_date=date(2024, 1, 15),
+            )
+            for i in range(12)
+        ],
+        total_count=12,
+    )
+
+
+@pytest.fixture
+def mock_headcount() -> HeadcountTimeseriesResponse:
+    """Mock headcount timeseries for the requesting company."""
+    return HeadcountTimeseriesResponse(
+        company_name="TechCorp Inc",
+        series=[
+            HeadcountDataPoint(date=date(2024, 1, 1), headcount=500),
+            HeadcountDataPoint(date=date(2024, 6, 1), headcount=550),
+        ],
     )
 
 
@@ -119,11 +152,18 @@ class TestAnalyzeStrategy:
         mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
         mock_candidates: list[CompanyEnrichmentResponse],
+        mock_jobs: JobsResponse,
+        mock_headcount: HeadcountTimeseriesResponse,
         client: TestClient,
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (
             mock_enrichment,
+            mock_provenance,
+        )
+        mock_client.get_jobs.return_value = (mock_jobs, mock_provenance)
+        mock_client.get_headcount_timeseries.return_value = (
+            mock_headcount,
             mock_provenance,
         )
         mock_get_candidates.return_value = mock_candidates
@@ -146,6 +186,7 @@ class TestAnalyzeStrategy:
         assert "reasoning" in data["build_analysis"]
         assert "timeline_months" in data["build_analysis"]
         assert "estimated_cost_usd" in data["build_analysis"]
+        assert data["build_analysis"]["score"] > 5.0
 
         # Partner analysis
         assert "score" in data["partner_analysis"]
@@ -166,11 +207,18 @@ class TestAnalyzeStrategy:
         mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
         mock_candidates: list[CompanyEnrichmentResponse],
+        mock_jobs: JobsResponse,
+        mock_headcount: HeadcountTimeseriesResponse,
         client: TestClient,
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (
             mock_enrichment,
+            mock_provenance,
+        )
+        mock_client.get_jobs.return_value = (mock_jobs, mock_provenance)
+        mock_client.get_headcount_timeseries.return_value = (
+            mock_headcount,
             mock_provenance,
         )
         mock_get_candidates.return_value = mock_candidates
@@ -181,6 +229,8 @@ class TestAnalyzeStrategy:
         )
 
         mock_client.get_company_enrichment.assert_called_with("Acme")
+        mock_client.get_jobs.assert_called_with("Acme")
+        mock_client.get_headcount_timeseries.assert_called_with("Acme")
 
     @patch("api.main.get_candidates")
     @patch("api.main.CachingClient")
@@ -191,11 +241,18 @@ class TestAnalyzeStrategy:
         mock_enrichment: CompanyEnrichmentResponse,
         mock_provenance: ApiProvenanceRecord,
         mock_candidates: list[CompanyEnrichmentResponse],
+        mock_jobs: JobsResponse,
+        mock_headcount: HeadcountTimeseriesResponse,
         client: TestClient,
     ) -> None:
         mock_client = mock_client_cls.return_value
         mock_client.get_company_enrichment.return_value = (
             mock_enrichment,
+            mock_provenance,
+        )
+        mock_client.get_jobs.return_value = (mock_jobs, mock_provenance)
+        mock_client.get_headcount_timeseries.return_value = (
+            mock_headcount,
             mock_provenance,
         )
         mock_get_candidates.return_value = mock_candidates
@@ -226,9 +283,7 @@ class TestAnalyzeStrategy:
         client: TestClient,
     ) -> None:
         mock_client = mock_client_cls.return_value
-        mock_client.get_company_enrichment.side_effect = ValueError(
-            "Company not found"
-        )
+        mock_client.get_company_enrichment.side_effect = ValueError("Company not found")
         mock_get_candidates.return_value = mock_candidates
 
         response = client.post(
