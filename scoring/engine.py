@@ -523,22 +523,25 @@ def analyze_strategy(
     acquire_candidates = rank_candidates(candidates, acquire_score.score)
 
     # ── Assemble per-path analyses ──────────────────────────
+    build_score_note = "" if build_score.score > 0 else " (not able to access data, upgrade your plan)"
+    partner_score_note = "" if partner_score.score > 0 else " (not able to access data, upgrade your plan)"
+    acquire_score_note = "" if acquire_score.score > 0 else " (not able to access data, upgrade your plan)"
+
     build_analysis = BuildAnalysis(
         score=build_score.score,
-        reasoning=f"Build path scored {build_score.score:.1f}/10 based on internal readiness.",
+        reasoning=f"Build path scored {build_score.score:.1f}/10 based on internal readiness.{build_score_note}",
         timeline_months=_estimate_timeline(build_score.score),
-        estimated_cost_usd=_estimate_cost(build_score.score),
     )
 
     partner_analysis = PartnerAnalysis(
         score=partner_score.score,
-        reasoning=f"Partner path scored {partner_score.score:.1f}/10 based on ecosystem fit.",
+        reasoning=f"Partner path scored {partner_score.score:.1f}/10 based on ecosystem fit.{partner_score_note}",
         candidates=partner_candidates,
     )
 
     acquire_analysis = AcquireAnalysis(
         score=acquire_score.score,
-        reasoning=f"Acquire path scored {acquire_score.score:.1f}/10 based on target availability.",
+        reasoning=f"Acquire path scored {acquire_score.score:.1f}/10 based on target availability.{acquire_score_note}",
         candidates=acquire_candidates,
     )
 
@@ -588,8 +591,3 @@ def rank_candidates(
 def _estimate_timeline(score: float) -> int:
     """Estimate months to capability based on build score."""
     return max(3, int((10 - score) * 4))
-
-
-def _estimate_cost(score: float) -> int:
-    """Estimate USD cost based on build score."""
-    return int((10 - score) * 1_000_000 + 500_000)

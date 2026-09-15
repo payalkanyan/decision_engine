@@ -39,7 +39,6 @@ class PathAnalysisResponse(BaseModel):
     score: float
     reasoning: str
     timeline_months: int | None = None
-    estimated_cost_usd: int | None = None
     candidates: list[dict] = []
 
 
@@ -118,7 +117,6 @@ def analyze_strategy_endpoint(req: AnalyzeRequest) -> AnalyzeResponse:
                 score=analysis.build_analysis.score,
                 reasoning=analysis.build_analysis.reasoning,
                 timeline_months=analysis.build_analysis.timeline_months,
-                estimated_cost_usd=analysis.build_analysis.estimated_cost_usd,
             ),
             partner_analysis=PathAnalysisResponse(
                 path="partner",

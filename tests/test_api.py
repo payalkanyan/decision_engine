@@ -185,7 +185,6 @@ class TestAnalyzeStrategy:
         assert "score" in data["build_analysis"]
         assert "reasoning" in data["build_analysis"]
         assert "timeline_months" in data["build_analysis"]
-        assert "estimated_cost_usd" in data["build_analysis"]
         assert data["build_analysis"]["score"] > 5.0
 
         # Partner analysis

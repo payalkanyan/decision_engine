@@ -94,7 +94,7 @@ class BuildAnalysis(BaseModel):
     score: float
     reasoning: str
     timeline_months: int
-    estimated_cost_usd: int
+    candidates: list = []
 
 
 class PartnerAnalysis(BaseModel):

@@ -84,7 +84,6 @@ def main() -> None:
         print(f"{'=' * 50}")
         print(f"\nBuild: {analysis.build_analysis.score:.1f}/10")
         print(f"  Timeline: {analysis.build_analysis.timeline_months} months")
-        print(f"  Estimated cost: ${analysis.build_analysis.estimated_cost_usd:,}")
         print(f"  {build_reasoning}")
         print(f"\nPartner: {analysis.partner_analysis.score:.1f}/10")
         print(f"  Candidates: {len(analysis.partner_analysis.candidates)}")
