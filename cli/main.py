@@ -26,15 +26,30 @@ def main() -> None:
         my_company_data, provenance = caching_client.get_company_enrichment(args.my_company)
         print(f"Data fetched (cache_hit={provenance.cache_hit})")
 
-        # 1b. Fetch own company's jobs + headcount for build path scoring
-        my_company_jobs, _ = caching_client.get_jobs(args.my_company)
-        my_company_headcount, _ = caching_client.get_headcount_timeseries(args.my_company)
+        # 1b. Fetch own company's jobs + headcount for build path scoring (optional)
+        try:
+            my_company_jobs, _ = caching_client.get_jobs(args.my_company)
+        except Exception:
+            my_company_jobs = None
+        try:
+            my_company_headcount, _ = caching_client.get_headcount_timeseries(args.my_company)
+        except Exception:
+            my_company_headcount = None
 
-        # 2. Get candidates for each path
+        # 2. Get candidates for each path (optional — degrade gracefully)
         print("\nSearching for candidates...")
-        build_candidates = get_candidates(caching_client, args.capability, "build")
-        partner_candidates = get_candidates(caching_client, args.capability, "partner")
-        acquire_candidates = get_candidates(caching_client, args.capability, "acquire")
+        try:
+            build_candidates = get_candidates(caching_client, args.capability, "build")
+        except Exception:
+            build_candidates = []
+        try:
+            partner_candidates = get_candidates(caching_client, args.capability, "partner")
+        except Exception:
+            partner_candidates = []
+        try:
+            acquire_candidates = get_candidates(caching_client, args.capability, "acquire")
+        except Exception:
+            acquire_candidates = []
         print(
             f"Found {len(build_candidates)} build, "
             f"{len(partner_candidates)} partner, "

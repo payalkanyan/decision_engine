@@ -560,7 +560,7 @@ def rank_candidates(
     for c in candidates:
         name = c.company.company_name
         headcount = c.company.employee_count or 0
-        funding = c.company.funding.total_raised if c.company.funding else 0
+        funding = c.company.funding.total_raised if c.company.funding and c.company.funding.total_raised else 0
 
         # Heuristic: smaller + funded = better acquisition target
         size_factor = max(0, 10 - headcount / 50) if headcount else 5
