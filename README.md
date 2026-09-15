@@ -3,7 +3,7 @@
 An AI decision engine that takes a strategic goal like "We want to enter AI voice" and recommends whether your company should **Build**, **Partner**, or **Acquire** to gain that capability — backed by real [Crustdata](https://crustdata.com) company, people, jobs, and funding data.
 
 ![website](image.png)
-
+![results](image-1.png)
 
 Scoring is deterministic and code-driven via `rubric.yaml`. The LLM is used only for translation and narrative, never for computing scores.
 
