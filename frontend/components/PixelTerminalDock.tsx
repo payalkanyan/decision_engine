@@ -23,7 +23,7 @@ import {
  * eight-stop dusk ramp, the scanline overlay and the vignette.
  *
  * What changed: items are real routes with the current one marked, the brand
- * links home, the CTA performs the page's primary action, and the fake
+ * links home, the trailing cell credits the data provider, and the fake
  * telemetry readout ("MEM 640K / DITHER 8x8 / PAL 8") is gone because it is
  * decoration pretending to be instrumentation.
  */
@@ -233,9 +233,18 @@ export default function PixelTerminalDock({
           })}
         </nav>
 
-        <a href="#analysis-form" className="ptd__cta">
-          <span aria-hidden="true">&#9654;</span>
-          RUN
+        {/* Outbound credit to the data provider. target=_blank needs the
+            noopener/noreferrer pair, and the destination is named in the
+            label so the arrow is decoration rather than the only cue. */}
+        <a
+          href="https://crustdata.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ptd__cta"
+          aria-label="Crustdata (opens in a new tab)"
+        >
+          CRUSTDATA
+          <span aria-hidden="true">&#8599;</span>
         </a>
       </header>
     </div>

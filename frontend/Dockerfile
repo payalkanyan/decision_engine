@@ -7,6 +7,12 @@ RUN npm ci
 
 COPY . .
 
+# NEXT_PUBLIC_* is inlined into the client bundle at build time, so setting it
+# as a runtime variable on the host does nothing. It has to be supplied here.
+# Left unset, lib/constants.ts falls back to the production API URL.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
@@ -17,13 +23,18 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-COPY --from=builder /app/.next ./.next
+# next.config.ts sets output: "standalone", so .next/standalone carries the
+# server plus only the traced dependencies. Static assets and public/ are not
+# traced and have to be copied alongside it.
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-EXPOSE 3000
 
+RUN addgroup -S app && adduser -S -G app app
+USER app
+
+EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "node_modules/next/dist/bin/next", "start"]
+CMD ["node", "server.js"]

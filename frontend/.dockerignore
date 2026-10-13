@@ -1,0 +1,16 @@
+# Host artefacts must never shadow what the build produces inside the image.
+node_modules
+.next
+out
+
+# Local-only
+.env*
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+
+# Test tooling is not needed to build or serve the app
+tests
+vitest.config.mts
