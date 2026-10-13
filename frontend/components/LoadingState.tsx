@@ -1,51 +1,57 @@
-export default function LoadingState({
-  capability,
-}: {
-  capability?: string;
-}) {
+/**
+ * Skeleton shaped like the results page, not a spinner. The reader sees where
+ * the verdict, the three path rows and the candidate grid will land, so the
+ * layout does not jump when the response arrives.
+ */
+export default function LoadingState({ capability }: { capability?: string }) {
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center gap-8 p-6"
+      className="animate-pulse motion-reduce:animate-none"
       data-testid="loading-state"
+      role="status"
+      aria-live="polite"
     >
-      <div className="relative">
-        <div className="w-16 h-16 border-4 border-crustdata-blue/30 border-t-crustdata-blue rounded-full animate-spin" />
-        <div className="absolute inset-0 w-16 h-16 border-4 border-crustdata-accent/20 border-b-crustdata-accent rounded-full animate-ping" />
+      <span className="sr-only">
+        {capability
+          ? `Scoring the build, partner and acquire paths for ${capability}`
+          : "Scoring the build, partner and acquire paths"}
+      </span>
+
+      <Bar className="h-6 w-72" />
+
+      <div className="mt-16 grid gap-12 border-b border-line pb-20 lg:grid-cols-12 lg:gap-16">
+        <div className="space-y-6 lg:col-span-7">
+          <Bar className="h-24 w-80" />
+          <Bar className="h-4 w-full max-w-xl" />
+          <Bar className="h-4 w-4/5 max-w-lg" />
+        </div>
+        <div className="space-y-5 lg:col-span-5 lg:pt-4">
+          <Bar className="h-20 w-56" />
+          <Bar className="h-1 w-full" />
+          <Bar className="h-4 w-full" />
+          <Bar className="h-4 w-2/3" />
+        </div>
       </div>
 
-      <div className="text-center space-y-3">
-        <h2 className="text-2xl font-semibold text-crustdata-light">
-          Analyzing your strategy
-        </h2>
-        <p className="text-crustdata-light/60 max-w-md">
-          {capability
-            ? `Scoring Build, Partner, and Acquire paths for "${capability}"...`
-            : "Scoring Build, Partner, and Acquire paths..."}
-        </p>
-      </div>
-
-      <div className="flex gap-3">
-        {["Build", "Partner", "Acquire"].map((path) => (
+      <div className="mt-20 border-t border-line">
+        {[0, 1, 2].map((row) => (
           <div
-            key={path}
-            className="px-4 py-2 bg-crustdata-dark/50 border border-crustdata-blue/20 rounded-lg"
+            key={row}
+            className="grid gap-6 border-b border-line py-10 lg:grid-cols-12 lg:gap-10"
           >
-            <span className="text-sm font-medium text-crustdata-light">
-              {path}
-            </span>
+            <Bar className="h-9 w-32 lg:col-span-3" />
+            <Bar className="h-9 w-28 lg:col-span-3" />
+            <div className="space-y-3 lg:col-span-6">
+              <Bar className="h-4 w-full max-w-xl" />
+              <Bar className="h-4 w-3/5 max-w-md" />
+            </div>
           </div>
-        ))}
-      </div>
-
-      <div className="w-full max-w-2xl space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-3 bg-gray-700/30 rounded-full animate-pulse"
-            style={{ width: `${80 - i * 10}%` }}
-          />
         ))}
       </div>
     </div>
   );
+}
+
+function Bar({ className }: { className: string }) {
+  return <div className={`bg-raised ${className}`} />;
 }

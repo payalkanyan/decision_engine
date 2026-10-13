@@ -1,20 +1,388 @@
 @import "tailwindcss";
 
-@theme inline {
-  --color-crustdata-dark: #1a1f2e;
-  --color-crustdata-blue: #0066ff;
-  --color-crustdata-accent: #00d4ff;
-  --color-crustdata-light: #e8e8e8;
-  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/*
+ * Decision Engine design tokens: the Crustdata palette.
+ *
+ * Sampled from crustdata.com rather than guessed: the indigo-violet pair
+ * (#5752ca buttons, #6e69e0 announcement bar), the near-black indigo page
+ * (#090916), the elevated nav panel (#0b0a18), the #181638 hero glow, white
+ * headlines and #aaaaaa body copy.
+ *
+ * The layout is unchanged: this is still the ThreeUI Pixel Terminal format,
+ * repainted. The dock's shader ramp in
+ * components/vendor/pixel-terminal/retroPixelField.ts carries the same eight
+ * stops in GLSL so the field and the chrome stay one palette.
+ *
+ * Violet as a default is an anti-pattern; violet because the brand is violet
+ * is not. One hue, two steps, measured against --color-canvas:
+ *   --color-accent      #8782ea  6.0:1  accent text, marks, meter fills.
+ *   --color-accent-deep #5752ca         button and active-cell fill; carries
+ *                                       --color-on-accent at 6.1:1.
+ * Body --color-muted is 8.5:1, --color-faint 4.9:1.
+ *
+ * RADIUS: none. The dock is a hard-edged terminal strip and nothing rounds.
+ */
+@theme {
+  --color-canvas: #090916;
+  --color-surface: #0b0a18;
+  --color-raised: #12102a;
+  --color-cell: #181638;
+  --color-cell-hot: #272363;
+
+  --color-line: #2a2752;
+  --color-chrome: #e9e8f7;
+
+  --color-text: #ffffff;
+  --color-muted: #aaaaaa;
+  --color-faint: #7e7c94;
+
+  --color-accent: #8782ea;
+  --color-accent-deep: #5752ca;
+  --color-on-accent: #ffffff;
+
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-fragment-mono), ui-monospace, monospace;
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-crustdata-dark text-crustdata-light font-sans antialiased;
+    background-color: var(--color-canvas);
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Structural type is the terminal face: labels, numbers, eyebrows, buttons
+     and headlines. Running prose stays in the sans for readability. */
+  .tnum,
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* ---- Pixel Terminal dock -----------------------------------------------
+   Ported from the .atd-retro rules in @designcodeio/threeui's stylesheet,
+   with its own colours. Metrics are the upstream container-query clamps, so
+   the strip scales the way the component was tuned to.                     */
+.ptd {
+  --atd-top: clamp(16px, 2.6cqw, 46px);
+  --atd-bar-width: min(1460px, calc(100% - clamp(24px, 4.2cqw, 96px)));
+  --atd-bar-height: clamp(48px, 3.4cqw, 68px);
+  --atd-item-pad: clamp(6px, 0.5cqw, 12px);
+  --atd-label: clamp(9px, 0.68cqw, 15px);
+  --atd-icon: clamp(10px, 0.78cqw, 17px);
+  --atd-brand: clamp(11px, 0.8cqw, 18px);
+  --atd-gap: clamp(5px, 0.44cqw, 9px);
+  --atd-scan: 0.32;
+
+  position: relative;
+  container-type: inline-size;
+  display: block;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+
+/* Tall enough that the dithered field reads as the page's hero visual rather
+   than as a strip of texture behind the bar. */
+.ptd--hero {
+  height: clamp(240px, 34vh, 360px);
+}
+.ptd--band {
+  height: clamp(180px, 26vh, 270px);
+}
+
+/* The drawing buffer is low-resolution artwork; CSS blows it up with
+   nearest-neighbour sampling so every pixel stays square. */
+.ptd__field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.ptd__vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(124% 90% at 50% 34%, transparent 28%, rgba(6, 4, 16, 0.62) 100%),
+    linear-gradient(180deg, rgba(6, 4, 16, 0.6) 0%, transparent 24%);
+}
+
+/* One drawing-buffer row is pixelSize screen rows tall, so the CRT line
+   structure has to be a screen-resolution overlay rather than a shader term. */
+.ptd::before {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  content: "";
+  opacity: calc(var(--atd-scan) * 1.5);
+  background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0 1px, transparent 1px 3px);
+}
+
+.ptd__bar {
+  position: absolute;
+  top: var(--atd-top);
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  gap: 0;
+  align-items: center;
+  justify-content: space-between;
+  width: var(--atd-bar-width);
+  height: var(--atd-bar-height);
+  padding: 0;
+  overflow: hidden;
+  transform: translate(-50%);
+  border: 2px solid var(--color-chrome);
+  background: var(--color-raised);
+  box-shadow: 6px 6px #0604109e;
+}
+
+.ptd__brand {
+  display: inline-flex;
+  flex: none;
+  gap: clamp(7px, 0.6cqw, 13px);
+  align-items: center;
+  height: 100%;
+  padding: 0 clamp(12px, 1.1cqw, 26px);
+  border-right: 2px solid var(--color-line);
+  color: var(--color-accent);
+  background: var(--color-surface);
+  font: 400 var(--atd-brand) / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+.ptd__badge,
+.ptd__icon {
+  display: inline-flex;
+  flex: none;
+  width: var(--atd-icon);
+  height: var(--atd-icon);
+}
+
+.ptd__badge svg,
+.ptd__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  shape-rendering: crispEdges;
+}
+
+/* The cells own the whole track and trade width with each other: the spring
+   controller writes explicit pixel widths here. */
+.ptd__dock {
+  display: flex;
+  flex: 1 1 0;
+  gap: 0;
+  align-items: stretch;
+  min-width: 0;
+  height: 100%;
+}
+
+.ptd__item {
+  display: inline-flex;
+  flex: none;
+  gap: var(--atd-gap);
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--atd-item-pad);
+  overflow: hidden;
+  border: 0;
+  border-right: 2px solid var(--color-line);
+  outline: none;
+  color: var(--color-muted);
+  background: var(--color-cell);
+  font: 400 var(--atd-label) / 1 var(--font-mono);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  text-decoration: none;
+  transform-origin: 50% 0;
+  will-change: width;
+  cursor: pointer;
+}
+
+.ptd__item[data-dock-near="true"],
+.ptd__item:focus-visible {
+  color: var(--color-text);
+  background: var(--color-cell-hot);
+}
+
+.ptd__item[aria-current="page"] {
+  color: var(--color-on-accent);
+  background: var(--color-accent-deep);
+}
+
+.ptd__cta {
+  display: inline-flex;
+  flex: none;
+  gap: var(--atd-gap);
+  align-items: center;
+  height: 100%;
+  padding: 0 clamp(14px, 1.2cqw, 28px);
+  border: 0;
+  border-left: 2px solid var(--color-chrome);
+  color: var(--color-on-accent);
+  background: var(--color-accent-deep);
+  font: 400 var(--atd-label) / 1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-decoration: none;
+}
+
+.ptd__cta:hover {
+  background: var(--color-accent);
+}
+
+/* Below the dock's own breakpoint the spring never runs, so the cells must
+   still fill the strip on their own. */
+@media (max-width: 600px) {
+  .ptd__item {
+    flex: 1 1 0;
+    width: auto !important;
+  }
+  .ptd__item span:last-child {
+    display: none;
+  }
+}
+
+/* ---- Motion ------------------------------------------------------------ */
+[data-reveal],
+[data-mask-line] {
+  opacity: 0;
+}
+
+.mask-window {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.12em;
+}
+
+/* Each headline line rises out of its own clipping window, staggered by its
+   index. Pure CSS, so it needs no script and nothing to clean up. */
+[data-mask-line] {
+  animation: mask-rise 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--line-index, 0) * 85ms + 80ms);
+}
+
+@keyframes mask-rise {
+  from {
+    opacity: 0;
+    transform: translateY(115%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (scripting: none) {
+  [data-reveal],
+  [data-mask-line] {
+    opacity: 1;
+  }
+}
+
+/* ---- Route transitions -------------------------------------------------
+   Forward into a result slides left, back to the form slides right. */
+::view-transition-old(.nav-forward) {
+  --slide-offset: -60px;
+  animation:
+    150ms ease-in both fade reverse,
+    400ms ease-in-out both slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 60px;
+  animation:
+    210ms ease-out 150ms both fade,
+    400ms ease-in-out both slide;
+}
+::view-transition-old(.nav-back) {
+  --slide-offset: 60px;
+  animation:
+    150ms ease-in both fade reverse,
+    400ms ease-in-out both slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -60px;
+  animation:
+    210ms ease-out 150ms both fade,
+    400ms ease-in-out both slide;
+}
+
+/* The dock is the reader's fixed spatial anchor, so it must not slide. */
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header),
+::view-transition-new(site-header) {
+  display: none;
+}
+
+@keyframes slide {
+  from {
+    translate: var(--slide-offset);
+  }
+  to {
+    translate: 0;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  [data-reveal],
+  [data-mask-line] {
+    opacity: 1;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

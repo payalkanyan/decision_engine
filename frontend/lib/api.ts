@@ -4,11 +4,13 @@ import { API_URL } from "@/lib/constants";
 export async function analyzeStrategy(
   myCompany: string,
   capability: string,
+  signal?: AbortSignal,
 ): Promise<AnalyzeResponse> {
   const response = await fetch(`${API_URL}/analyze-strategy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ my_company: myCompany, capability }),
+    signal,
   });
 
   if (!response.ok) {

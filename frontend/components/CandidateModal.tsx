@@ -1,140 +1,142 @@
-import { useEffect } from "react";
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import { Check, Copy, X } from "@phosphor-icons/react";
 import type { Candidate } from "@/lib/types";
+import { MAX_SCORE, formatScore, pathLabel } from "@/lib/score";
 
 interface CandidateModalProps {
   candidate: Candidate | null;
-  onClose: () => void;
   path: string;
+  onClose: () => void;
 }
 
+/**
+ * Shows only what the scoring engine actually returned.
+ *
+ * This dialog used to print a "Key Signals" and "Contact Info" block with
+ * invented values (a hardcoded "Series A+" funding stage, a "20-200"
+ * headcount range, a LinkedIn slug built by lowercasing the company name).
+ * None of it came from the API. In a product whose premise is that every
+ * score carries provenance, rendering fabricated evidence next to a real
+ * score is worse than rendering nothing, so it is gone.
+ */
 export default function CandidateModal({
   candidate,
-  onClose,
   path,
+  onClose,
 }: CandidateModalProps) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    if (!candidate) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
-    if (candidate) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleEscape);
-    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    dialogRef.current?.focus();
+
     return () => {
       document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
     };
   }, [candidate, onClose]);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   if (!candidate) return null;
 
-  const copyContactList = async () => {
-    const text = `${candidate.name}\nScore: ${candidate.score}/10\n${candidate.reasoning}`;
-    await navigator.clipboard.writeText(text);
-  };
+  const copySummary = async () => {
+    const summary = [
+      candidate.name,
+      `${pathLabel(path)} path, fit score ${formatScore(candidate.score)}/${MAX_SCORE}`,
+      candidate.reasoning,
+    ].join("\n");
 
-  const shareAnalysis = async () => {
-    if (navigator.share) {
-      await navigator.share({
-        title: `Strategy Analysis: ${candidate.name}`,
-        text: `${candidate.name} — Fit Score: ${candidate.score}/10\n${candidate.reasoning}`,
-      });
-    } else {
-      await navigator.clipboard.writeText(candidate.name);
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopied(true);
+    } catch {
+      setCopied(false);
     }
   };
 
-  const pathColor =
-    path === "partner"
-      ? "text-emerald-400"
-      : path === "acquire"
-        ? "text-amber-400"
-        : "text-crustdata-blue";
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-canvas/80 p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
       data-testid="candidate-modal"
     >
       <div
-        className="bg-crustdata-dark border border-gray-700 rounded-xl shadow-2xl max-w-2xl w-full mx-4 transform transition-all"
-        onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-xl border border-line bg-surface focus:outline-none"
       >
-        <div className="flex items-center justify-between p-6 border-b border-gray-700/50">
-          <h3 className="text-xl font-bold text-crustdata-light">
-            {candidate.name}
-          </h3>
-          <span
-            className={`text-sm font-medium ${pathColor} bg-crustdata-dark/30 px-3 py-1 rounded-full`}
+        <div className="flex items-start justify-between gap-6 border-b border-line p-6">
+          <div>
+            <h3
+              id={titleId}
+              className="text-xl font-semibold tracking-tight"
+            >
+              {candidate.name}
+            </h3>
+            <p className="mt-1 text-sm text-faint">{pathLabel(path)} path</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 text-faint transition-colors duration-200 hover:bg-raised hover:text-text"
           >
-            {path.charAt(0).toUpperCase() + path.slice(1)} Path
-          </span>
+            <X size={18} weight="bold" />
+          </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="space-y-6 p-6">
           <div>
-            <span className="text-sm font-medium text-crustdata-light/60">
-              Fit Score
-            </span>
-            <p className="text-3xl font-bold text-crustdata-blue mt-1">
-              {candidate.score.toFixed(1)}/10
+            <p className="text-sm text-faint">Fit score</p>
+            <p className="tnum mt-1 text-4xl tracking-tight text-accent">
+              {formatScore(candidate.score)}
+              <span className="text-xl text-faint">/{MAX_SCORE}</span>
             </p>
           </div>
 
           <div>
-            <span className="text-sm font-medium text-crustdata-light/60">
-              Reasoning
-            </span>
-            <p className="text-crustdata-light/80 mt-1 leading-relaxed">
+            <p className="text-sm text-faint">Reasoning</p>
+            <p className="mt-2 leading-relaxed text-muted">
               {candidate.reasoning}
             </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div className="bg-crustdata-dark/30 rounded-lg p-4 border border-gray-700/30">
-              <span className="text-xs font-medium text-crustdata-light/60 uppercase">
-                Key Signals
-              </span>
-              <ul className="mt-2 space-y-1 text-sm text-crustdata-light/70">
-                <li>Tech stack aligned with {candidate.name.split(" ")[0]}</li>
-                <li>Funding stage: Series A+</li>
-                <li>Headcount: 20-200 range</li>
-              </ul>
-            </div>
-            <div className="bg-crustdata-dark/30 rounded-lg p-4 border border-gray-700/30">
-              <span className="text-xs font-medium text-crustdata-light/60 uppercase">
-                Contact Info
-              </span>
-              <ul className="mt-2 space-y-1 text-sm text-crustdata-light/70">
-                <li>Partnerships team</li>
-                <li>Technical leadership</li>
-                <li>LinkedIn: linkedin.com/company/{candidate.name.toLowerCase().replace(/\s/g, "-")}</li>
-              </ul>
-            </div>
-          </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-700/50 bg-crustdata-dark/20 rounded-b-xl">
+        <div className="flex justify-end gap-3 border-t border-line p-4">
           <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-crustdata-light/70 hover:text-crustdata-light hover:bg-crustdata-dark/30 rounded-lg transition-colors border border-gray-700/30"
+            type="button"
+            onClick={copySummary}
+            className="inline-flex items-center gap-2 border border-line px-4 py-2 text-sm text-muted transition-colors duration-200 hover:border-chrome hover:text-text active:translate-y-px"
+            data-testid="copy-summary"
           >
-            Close
-          </button>
-          <button
-            onClick={copyContactList}
-            className="px-4 py-2 text-sm text-crustdata-light hover:text-crustdata-blue hover:bg-crustdata-dark/30 rounded-lg transition-colors border border-crustdata-blue/30"
-            data-testid="copy-contact"
-          >
-            Copy Contact List
-          </button>
-          <button
-            onClick={shareAnalysis}
-            className="px-4 py-2 text-sm font-medium text-white hover:bg-crustdata-blue/90 bg-crustdata-blue rounded-lg transition-colors"
-            data-testid="share-analysis"
-          >
-            Share Analysis
+            {copied ? (
+              <Check size={16} weight="bold" />
+            ) : (
+              <Copy size={16} weight="bold" />
+            )}
+            {copied ? "Copied" : "Copy summary"}
           </button>
         </div>
       </div>

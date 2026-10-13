@@ -1,12 +1,37 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState, ViewTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import ResultsCards from "@/components/ResultsCards";
+import PixelTerminalDock from "@/components/PixelTerminalDock";
+import SiteFooter from "@/components/SiteFooter";
+import ResultsView from "@/components/ResultsView";
 import LoadingState from "@/components/LoadingState";
 import ErrorState from "@/components/ErrorState";
 import { analyzeStrategy } from "@/lib/api";
 import type { AnalyzeResponse } from "@/lib/types";
+
+const NAV_TRANSITIONS = {
+  "nav-forward": "nav-forward",
+  "nav-back": "nav-back",
+  default: "none",
+} as const;
+
+type RequestState =
+  | { status: "loading" }
+  | { status: "ready"; data: AnalyzeResponse }
+  | { status: "error"; message: string };
+
+/**
+ * fetch rejects with a bare TypeError ("Failed to fetch") for DNS, CORS and
+ * connection failures, which tells the reader nothing they can act on.
+ * Anything else is a message the API itself chose, so it passes through.
+ */
+function describeFailure(error: unknown): string {
+  if (error instanceof TypeError) {
+    return "Could not reach the scoring service. Check your connection, then try again.";
+  }
+  return error instanceof Error ? error.message : "Failed to analyze strategy";
+}
 
 function ResultsContent() {
   const router = useRouter();
@@ -14,90 +39,85 @@ function ResultsContent() {
   const company = searchParams.get("company");
   const capability = searchParams.get("capability");
 
-  const [data, setData] = useState<AnalyzeResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [state, setState] = useState<RequestState>({ status: "loading" });
 
-  const fetchData = async () => {
-    if (!company || !capability) return;
+  /**
+   * Nothing is set synchronously here: the first statement is the request
+   * itself, so mounting does not trigger a cascading render, and an aborted
+   * run resolves without touching state at all. That last part matters when
+   * the reader changes the query mid-flight, where the previous version could
+   * land a stale response over a newer one.
+   */
+  const runAnalysis = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!company || !capability) return;
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await analyzeStrategy(company, capability);
-      setData(result);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Failed to analyze strategy",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      try {
+        const data = await analyzeStrategy(company, capability, signal);
+        if (signal?.aborted) return;
+        setState({ status: "ready", data });
+      } catch (e) {
+        if (signal?.aborted) return;
+        setState({ status: "error", message: describeFailure(e) });
+      }
+    },
+    [company, capability],
+  );
 
   useEffect(() => {
     if (!company || !capability) {
       router.replace("/");
       return;
     }
-    void fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company, capability]);
 
-  const handleRetry = () => {
-    void fetchData();
-  };
+    const controller = new AbortController();
+    // The rule cannot see across the await inside runAnalysis. Every setState
+    // in there is behind the network round trip, so this does not cascade a
+    // render on mount. Moving the fetch to a Server Component would remove
+    // the effect outright, but that changes which network reaches the API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void runAnalysis(controller.signal);
+    return () => controller.abort();
+  }, [company, capability, runAnalysis, router]);
 
-  const handleStartOver = () => {
-    router.push("/");
-  };
+  const handleRetry = useCallback(() => {
+    setState({ status: "loading" });
+    void runAnalysis();
+  }, [runAnalysis]);
 
-  if (!company || !capability) {
-    return null;
+  if (!company || !capability) return null;
+
+  if (state.status === "loading") {
+    return <LoadingState capability={capability} />;
   }
 
-  return (
-    <div className="min-h-screen bg-crustdata-dark text-crustdata-light py-12">
-      <div className="container mx-auto px-6 max-w-7xl">
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={handleStartOver}
-            className="px-4 py-2 text-sm text-crustdata-light/70 hover:text-crustdata-light hover:bg-crustdata-dark/30 rounded-lg border border-crustdata-blue/20 transition-colors"
-            data-testid="start-over"
-          >
-            ← Start Over
-          </button>
-        </div>
+  if (state.status === "error") {
+    return <ErrorState message={state.message} onRetry={handleRetry} />;
+  }
 
-        {isLoading && <LoadingState capability={capability} />}
-
-        {error && (
-          <ErrorState message={error} onRetry={handleRetry} />
-        )}
-
-        {data && (
-          <div className="space-y-8">
-            <ResultsCards data={data} />
-
-            <div className="text-center pt-8">
-              <button
-                onClick={handleStartOver}
-                className="px-6 py-3 text-crustdata-light/70 hover:text-crustdata-blue hover:bg-crustdata-dark/30 rounded-lg border border-crustdata-blue/30 transition-colors text-sm"
-              >
-                Run Another Analysis
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <ResultsView data={state.data} />;
 }
 
 export default function ResultsPage() {
   return (
-    <Suspense fallback={<LoadingState />}>
-      <ResultsContent />
-    </Suspense>
+    <>
+      <PixelTerminalDock />
+
+      <ViewTransition
+        enter={NAV_TRANSITIONS}
+        exit={NAV_TRANSITIONS}
+        default="none"
+      >
+        <main className="flex-1">
+          <div className="mx-auto max-w-7xl px-6 py-16 lg:px-10 lg:py-24">
+            <Suspense fallback={<LoadingState />}>
+              <ResultsContent />
+            </Suspense>
+          </div>
+        </main>
+      </ViewTransition>
+
+      <SiteFooter />
+    </>
   );
 }
